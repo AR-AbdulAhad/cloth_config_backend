@@ -1,0 +1,231 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum EducationType {
+  STX
+  HF
+  HHX
+  HTX
+  EUD
+  EUX
+  Efterskole
+}
+
+enum Role {
+  admin
+  server_owner
+  class_representative
+  student
+}
+
+enum LogoStatus {
+  uploaded
+  pending
+  approved
+  rejected
+}
+
+enum DesignStatus {
+  uploaded
+  pending
+  approved
+  rejected
+}
+
+enum NameListStatus {
+  draft
+  ready
+  locked
+  approved
+  rejected
+}
+
+enum OrderStatus {
+  in_progress
+  completed
+  cancelled
+}
+
+enum ClassStatus {
+  active
+  orders_locked
+  production_ready
+  shipped
+  completed
+}
+
+model School {
+  id             Int           @id @default(autoincrement())
+  name           String        @db.VarChar(255)
+  education_type EducationType
+  status         Int           @default(0)
+  created_at     DateTime      @default(now())
+
+  classes Classes[]
+  users   User[]
+  logos   Logo[]
+
+  @@map("schools")
+}
+
+model Classes {
+  id               Int         @id @default(autoincrement())
+  school_id        Int
+  name             String      @db.VarChar(255)
+  graduation_year  Int
+  change_deadline  DateTime?
+  order_locked     Boolean     @default(false)
+  name_list_locked Boolean     @default(false)
+  process_status   ClassStatus @default(active)
+  back_design_id   Int?
+  status           Int         @default(0)
+  created_at       DateTime    @default(now())
+
+  school             School              @relation(fields: [school_id], references: [id], onDelete: Cascade)
+  users              User[]
+  back_designs       BackDesign[]
+  name_lists         NameList?
+  orders             Order[]
+  production_package ProductionPackage[]
+
+  @@map("classes")
+}
+
+model User {
+  id                 Int      @id @default(autoincrement())
+  school_id          Int?
+  class_id           Int?
+  name               String   @db.VarChar(255)
+  email              String   @unique @db.VarChar(255)
+  password           String   @db.VarChar(255)
+  phone_number       String?  @db.VarChar(20)
+  role               Role     @default(student)
+  year_of_birth      Int?
+  consent_marketing  Boolean  @default(false)
+  consent_production Boolean  @default(false)
+  status             Int      @default(0)
+  created_at         DateTime @default(now())
+
+  school School?  @relation(fields: [school_id], references: [id], onDelete: SetNull)
+  class  Classes? @relation(fields: [class_id], references: [id], onDelete: SetNull)
+  logos  Logo[]
+  orders Order[]
+
+  @@map("users")
+}
+
+model Logo {
+  id             Int        @id @default(autoincrement())
+  name           String     @db.VarChar(255)
+  school_id      Int
+  uploaded_by    Int
+  file_path      String     @db.VarChar(255)
+  process_status LogoStatus @default(uploaded)
+  admin_comment  String?    @db.Text
+  status         Int        @default(0)
+  created_at     DateTime   @default(now())
+
+  school School @relation(fields: [school_id], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [uploaded_by], references: [id], onDelete: Cascade)
+  orders Order[]
+
+  @@map("logos")
+}
+
+model BackDesign {
+  id             Int          @id @default(autoincrement())
+  class_id       Int?
+  name           String       @db.VarChar(255)
+  file_path      String       @db.VarChar(255)
+  is_library     Boolean      @default(false)
+  process_status DesignStatus @default(uploaded)
+  status         Int          @default(0)
+  created_at     DateTime     @default(now())
+
+  class Classes? @relation(fields: [class_id], references: [id], onDelete: Cascade)
+
+  @@map("back_designs")
+}
+
+model NameList {
+  id             Int            @id @default(autoincrement())
+  class_id       Int            @unique
+  process_status NameListStatus @default(draft)
+  created_at     DateTime       @default(now())
+  locked_at      DateTime?
+
+  class Classes        @relation(fields: [class_id], references: [id], onDelete: Cascade)
+  items NameListItem[]
+
+  @@map("name_lists")
+}
+
+model NameListItem {
+  id           Int      @id @default(autoincrement())
+  name_list_id Int
+  name         String
+  position     Int
+  created_at   DateTime @default(now())
+
+  nameList NameList @relation(fields: [name_list_id], references: [id], onDelete: Cascade)
+
+  @@index([name_list_id, position])
+  @@map("name_list_items")
+}
+
+model Order {
+  id               Int         @id @default(autoincrement())
+  student_id       Int
+  class_id         Int
+  selected_logo_id Int?
+  delivery_details String?     @db.Text
+  is_locked        Boolean     @default(false)
+  process_status   OrderStatus @default(in_progress)
+  status           Int         @default(0)
+  created_at       DateTime    @default(now())
+  updated_at       DateTime    @default(now()) @updatedAt
+
+  student    User        @relation(fields: [student_id], references: [id], onDelete: Cascade)
+  class      Classes     @relation(fields: [class_id], references: [id], onDelete: Cascade)
+  logo       Logo?       @relation(fields: [selected_logo_id], references: [id], onDelete: SetNull)
+  order_items OrderItem[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id            Int      @id @default(autoincrement())
+  order_id      Int
+  product_type  String   @db.VarChar(100)
+  selectedColor String?  @db.VarChar(50)
+  selectedSize  String?  @db.VarChar(20)
+  design_config Json?
+  status        Int      @default(0)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @default(now()) @updatedAt
+
+  order Order @relation(fields: [order_id], references: [id], onDelete: Cascade)
+
+  @@map("order_items")
+}
+
+model ProductionPackage {
+  id                Int      @id @default(autoincrement())
+  class_id          Int
+  package_name      String   @db.VarChar(255)
+  excel_file_path   String?  @db.VarChar(255)
+  pdf_file_path     String?  @db.VarChar(255)
+  zip_file_path     String?  @db.VarChar(255)
+  generated_at      DateTime @default(now())
+  production_status String   @default("pending") @db.VarChar(50)
+
+  class Classes @relation(fields: [class_id], references: [id], onDelete: Cascade)
+
+  @@map("production_packages")
+}

@@ -1,0 +1,60 @@
+import express from "express";
+import { authMiddleware } from "../middlewares/authMiddleware.js";
+import { addSchool, listSchools, editSchool, removeSchool } from "../controllers/schoolController.js";
+import { addClassRep, listClassReps, editClassRep, removeClassRep } from "../controllers/userController.js";
+import { addClass, editClass, removeClass, listAllClasses, toggleClassStatus, lockClass, unlockClass } from "../controllers/classController.js";
+import { listSchoolLogos, approveLogo, rejectLogo } from "../controllers/logoController.js";
+import { listBackDesigns, approveBackDesign, rejectBackDesign } from "../controllers/designController.js";
+import { generateProductionFiles, listProductionPackages } from "../controllers/productionController.js";
+import { assignClassRep } from "../controllers/classController.js";
+import { toggleEntityStatus } from "../controllers/adminController.js";
+import { getClassNameList, approveNameList, rejectNameList, getAllNameList } from "../controllers/nameListControllers.js";
+
+const router = express.Router();
+
+const adminMiddleware = authMiddleware("admin");
+// School Routes
+router.post("/school/create", adminMiddleware, addSchool);
+router.post("/schools", adminMiddleware, listSchools);
+router.put("/school/:id/update", adminMiddleware, editSchool);
+router.delete("/school/:id/delete", adminMiddleware, removeSchool);
+router.patch("/:entityType/:id/toggle-status", adminMiddleware, toggleEntityStatus);
+// Class Rep Routes
+router.post("/class-rep/create", adminMiddleware, addClassRep);
+router.post("/class-reps", adminMiddleware, listClassReps);
+router.put("/class-rep/:id/update", adminMiddleware, editClassRep);
+router.delete("/class-rep/:id/delete", adminMiddleware, removeClassRep);
+router.patch("/:entityType/:id/toggle-status", adminMiddleware, toggleEntityStatus);
+
+// Class Routes
+router.post("/class/create", adminMiddleware, addClass);
+router.put("/class/:id/update", adminMiddleware, editClass);
+router.delete("/class/:id/delete", adminMiddleware, removeClass);
+router.get("/class/:id/toggle-status", toggleClassStatus);
+router.post("/class/assign-rep", adminMiddleware, assignClassRep);
+router.post("/classes", adminMiddleware, listAllClasses);
+
+// Logos
+router.post("/logos", adminMiddleware, listSchoolLogos);
+router.put("/approve-logo/:logoId", adminMiddleware, approveLogo);
+router.put("/reject-logo/:logoId", adminMiddleware, rejectLogo);
+
+// Back designs
+router.post("/back-designs", adminMiddleware, listBackDesigns);
+router.put("/approve-back-design/:id", adminMiddleware, approveBackDesign);
+router.put("/reject-back-design/:id", adminMiddleware, rejectBackDesign);
+router.put("/lock-class/:classId", adminMiddleware, lockClass);
+router.put("/unlock-class/:classId", adminMiddleware, unlockClass);
+
+
+// NameList (Admin)
+router.get("/namelist/list", adminMiddleware, getAllNameList);
+router.get("/namelist/:class_id/class", adminMiddleware, getClassNameList);
+router.put("/namelist/:id/approve", adminMiddleware, approveNameList);
+router.put("/namelist/:id/reject", adminMiddleware, rejectNameList);
+
+// Production Packages
+router.post("/generate-files/:classId", adminMiddleware, generateProductionFiles);
+router.post("/production-packages", adminMiddleware, listProductionPackages);
+
+export default router;
