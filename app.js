@@ -13,16 +13,13 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// ✅ Enable CORS for all origins
+// ✅ Enable CORS globally
 app.use(cors());
-
-// ✅ Handle preflight requests
-app.options("*", cors());
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ✅ Serve uploaded files
+// Serve uploads
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 // Routes
@@ -35,7 +32,7 @@ app.get("/", (req, res) => {
     res.send("StudentLife Backend API v1.5 is running");
 });
 
-// Multer errors
+// Multer error handler
 app.use((err, req, res, next) => {
     if (err instanceof multer.MulterError) {
         if (err.code === "LIMIT_FILE_SIZE") {
