@@ -18,7 +18,7 @@ export const addClassRep = async (req, res) => {
         });
 
         const encoded = Buffer.from(`${email}${generatedPassword}`).toString('base64');
-        const baseUrl = `${process.env.LOCAL_FRONTEND_URL}/set-password?${encoded}`;
+        const baseUrl = `https://elipsestudio.com/Cloth-Configurator-Dashboard/set-password?${encoded}`;
         await sendClassRepWelcomeEmail(email, baseUrl);
 
         res.status(201).json({ success: true, message: "Class Representative created", data: { id: rep.id, name: rep.name, email: rep.email } });
