@@ -1,5 +1,30 @@
 import prisma from "../config/prisma.js";
 
+
+export const getDashboardStats = async (req, res) => {
+    try {
+        const schoolCount = await prisma.school.count();
+        const classCount = await prisma.classes.count();
+        const userCount = await prisma.user.count();
+        const logoCount = await prisma.logo.count();
+        const backDesignCount = await prisma.backDesign.count();
+        const ordersCount = await prisma.order.count();
+        res.json({
+            success: true,
+            data: {
+                schoolCount,
+                classCount,
+                userCount,
+                logoCount,
+                backDesignCount,
+                ordersCount
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
 export const toggleEntityStatus = async (req, res) => {
     try {
         const { entityType, id } = req.params;

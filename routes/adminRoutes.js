@@ -7,12 +7,15 @@ import { listSchoolLogos, approveLogo, rejectLogo } from "../controllers/logoCon
 import { listBackDesigns, approveBackDesign, rejectBackDesign } from "../controllers/designController.js";
 import { generateProductionFiles, listProductionPackages } from "../controllers/productionController.js";
 import { assignClassRep } from "../controllers/classController.js";
-import { toggleEntityStatus } from "../controllers/adminController.js";
+import { getDashboardStats, toggleEntityStatus } from "../controllers/adminController.js";
 import { getClassNameList, approveNameList, rejectNameList, getAllNameList } from "../controllers/nameListControllers.js";
 
 const router = express.Router();
 
 const adminMiddleware = authMiddleware("admin");
+
+router.get("/dashboard", adminMiddleware, getDashboardStats);
+
 // School Routes
 router.post("/school/create", adminMiddleware, addSchool);
 router.post("/schools", adminMiddleware, listSchools);

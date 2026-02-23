@@ -1,4 +1,89 @@
 import prisma from "../config/prisma.js";
+import bcrypt from "bcryptjs";  
+import jwt from "jsonwebtoken"; 
+
+export const studentLogin = async (req, res) => {
+    try {
+        const { email, password } = req.body;
+
+        // Basic validation
+        if (!email || !password) {
+            return res.status(400).json({
+                success: false,
+                message: "Email and password are required"
+            });
+        }
+
+        // Fetch user
+        const user = await prisma.user.findUnique({ where: { email } });
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "Invalid email or password"
+            });
+        }
+        if (user.role === "admin" || user.role === "class_representative") {
+            return res.status(404).json({
+                success: false,
+                message: "Invalid email or password"
+            });
+        }
+
+        if (user.status === 1) {
+            return res.status(403).json({
+                success: false,
+                message: "Account is inactive. Please contact support."
+            });
+        }
+
+        // Compare password (async)
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid credentials"
+            });
+        }
+
+        // Generate JWT
+        const token = jwt.sign(
+            {
+                id: user.id,
+                role: user.role,
+                school_id: user.school_id,
+                class_id: user.class_id
+            },
+            process.env.JWT_SECRET || 'secret',
+            { expiresIn: '24h' }
+        );
+
+        res.json({
+            success: true,
+            message: "Login successful",
+            token,
+            data: {
+                user: {
+                    id: user.id,
+                    name: user.name,
+                    email: user.email,
+                    role: user.role,
+                    school_id: user.school_id,
+                    class_id: user.class_id,
+                    status: user.status
+                }
+            }
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({
+            success: false,
+            message: "Internal server error",
+            error: err.message
+        });
+    }
+};
+
 
 // Get Dashboard Data (Logos, Back Design)
 export const getDashboardData = async (req, res) => {
