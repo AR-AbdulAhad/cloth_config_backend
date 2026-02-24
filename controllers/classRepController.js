@@ -220,7 +220,7 @@ export const generateRegistrationLink = async (req, res) => {
         const encoded = Buffer.from(payload).toString('base64');
 
         // You might want to get this base URL from configs or env
-        const baseUrl = process.env.LOCAL_FRONTEND_URL || "http://localhost:5173";
+        const baseUrl = process.env.LIVE_FRONTEND_URL || "http://localhost:5173";
         const registrationLink = `${baseUrl}/Clothing-Configurator/register?${encoded}`;
 
         res.json({

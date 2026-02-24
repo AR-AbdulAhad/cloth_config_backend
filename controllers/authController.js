@@ -25,6 +25,13 @@ export const login = async (req, res) => {
             });
         }
 
+        if (user.role === "student") {
+            return res.status(403).json({
+                success: false,
+                message: "Students cannot log in to the dashboard. Please use the cloth configurator."
+            });
+        }
+
         // if (user.role === "class_representative") {
         //     if (!user.class_id) {
         //         return res.status(400).json({
