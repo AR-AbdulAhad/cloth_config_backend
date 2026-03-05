@@ -467,6 +467,40 @@ export const rejectNameList = async (req, res) => {
     }
 };
 
+export const unlockNameList = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const nameListId = Number(id);
+
+        const existing = await prisma.nameList.findUnique({ where: { id: nameListId } });
+        if (!existing) {
+            return res.status(404).json({ success: false, message: "Name list not found" });
+        }
+
+        // Only allow unlocking if currently approved or locked
+        if (existing.process_status !== "approved" && existing.process_status !== "locked") {
+            return res.status(400).json({
+                success: false,
+                message: "Can only unlock approved or locked name lists"
+            });
+        }
+
+        const updated = await prisma.nameList.update({
+            where: { id: nameListId },
+            data: {
+                process_status: "ready",
+                locked_at: null
+            }
+        });
+
+        res.json({ success: true, message: "Name list unlocked", data: updated });
+    } catch (error) {
+        console.error("Error unlocking name list:", error);
+        res.status(500).json({ success: false, message: "Server error", error: error.message });
+    }
+};
+
+
 export const deleteNameListItem = async (req, res) => {
     try {
         const { item_id } = req.params;

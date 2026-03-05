@@ -71,6 +71,62 @@ export const getMyOrder = async (req, res) => {
     }
 };
 
+export const getAllOrders = async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+
+        const skip = (page - 1) * limit;
+
+        // Get total count (for frontend pagination)
+        const total = await prisma.order.count({
+            where: { status: { not: 2 } }
+        });
+
+        const orders = await prisma.order.findMany({
+            where: { status: { not: 2 } },
+            skip,
+            take: limit,
+            orderBy: { created_at: 'desc' }, // optional but recommended
+            include: {
+                student: { select: { name: true, email: true } },
+                class: { select: { name: true } },
+                logo: true
+            }
+        });
+
+        res.json({
+            success: true,
+            data: orders,
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
+            }
+        });
+
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+export const getOrderDetails = async (req, res) => {
+    try {
+        const { orderId } = req.params;
+        const order = await prisma.order.findUnique({
+            where: { id: parseInt(orderId) },
+            include: { student: true, class: true, logo: true, order_items: { where: { status: { not: 2 } } } }
+        });
+        if (!order) {
+            return res.status(404).json({ success: false, message: "Order not found" });
+        }
+        res.json({ success: true, data: order });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
 export const getConfiguratorData = async (req, res) => {
     try {
         const { classId, schoolId } = req.params;

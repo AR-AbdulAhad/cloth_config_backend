@@ -8,7 +8,8 @@ import { listBackDesigns, approveBackDesign, rejectBackDesign } from "../control
 import { generateProductionFiles, listProductionPackages } from "../controllers/productionController.js";
 import { assignClassRep } from "../controllers/classController.js";
 import { getDashboardStats, toggleEntityStatus } from "../controllers/adminController.js";
-import { getClassNameList, approveNameList, rejectNameList, getAllNameList } from "../controllers/nameListControllers.js";
+import { getClassNameList, approveNameList, rejectNameList, getAllNameList, unlockNameList } from "../controllers/nameListControllers.js";
+import { getAllOrders, getOrderDetails } from "../controllers/orderController.js";
 
 const router = express.Router();
 
@@ -55,6 +56,11 @@ router.get("/namelist/list", adminMiddleware, getAllNameList);
 router.get("/namelist/:class_id/class", adminMiddleware, getClassNameList);
 router.put("/namelist/:id/approve", adminMiddleware, approveNameList);
 router.put("/namelist/:id/reject", adminMiddleware, rejectNameList);
+router.put("/namelist/:id/unlock", adminMiddleware, unlockNameList);
+
+// Production Packages
+router.get("/orders/list", adminMiddleware, getAllOrders);
+router.get("/orders/:orderId/details", adminMiddleware, getOrderDetails);
 
 // Production Packages
 router.post("/generate-files/:classId", adminMiddleware, generateProductionFiles);

@@ -236,13 +236,15 @@ export const getSidebarMenus = async (req, res) => {
                 { title: 'System Classes', path: 'all-classes', icon: 'ClassIcon' },
                 { title: 'Logos / Back Designs', path: 'review-uploads', icon: 'ImageIcon' },
                 { title: 'Name List', path: '/name-list', icon: 'FormatListBulletedIcon' },
-                { title: 'Production Files', path: 'production-files', icon: 'FolderZipIcon' },
+                { title: 'Orders List', path: '/orders-list', icon: 'FolderZipIcon' },
             ];
         } else if (role === 'class_representative') {
             menus = [
                 { title: 'My Classes', path: '/my-class', icon: 'GroupIcon' },
                 { title: 'Logo Upload', path: '/upload-files', icon: 'CloudUploadIcon' },
-                { title: 'Orders Review', path: '/orders', icon: 'ReceiptIcon' },
+                { title: 'Back Design Configurator', path: '/back-design-configurator', icon: 'CloudUploadIcon' },
+                { title: 'Name List', path: '/namelist', icon: 'FormatListBulletedIcon' },
+                // { title: 'Orders Review', path: '/orders', icon: 'ReceiptIcon' },
             ];
         } else if (role === 'student') {
             menus = [
