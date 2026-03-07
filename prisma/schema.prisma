@@ -179,7 +179,6 @@ model NameListItem {
   @@index([name_list_id, position])
   @@map("name_list_items")
 }
-
 model Order {
   id               Int         @id @default(autoincrement())
   student_id       Int
@@ -189,15 +188,32 @@ model Order {
   is_locked        Boolean     @default(false)
   process_status   OrderStatus @default(in_progress)
   status           Int         @default(0)
+  version          Int         @default(1)        
   created_at       DateTime    @default(now())
   updated_at       DateTime    @default(now()) @updatedAt
 
-  student     User        @relation(fields: [student_id], references: [id], onDelete: Cascade)
-  class       Classes     @relation(fields: [class_id], references: [id], onDelete: Cascade)
-  logo        Logo?       @relation(fields: [selected_logo_id], references: [id], onDelete: SetNull)
-  order_items OrderItem[]
-
+  student        User           @relation(fields: [student_id], references: [id], onDelete: Cascade)
+  class          Classes        @relation(fields: [class_id], references: [id], onDelete: Cascade)
+  logo           Logo?          @relation(fields: [selected_logo_id], references: [id], onDelete: SetNull)
+  order_items    OrderItem[]
+  order_history  OrderHistory[]
+  
   @@map("orders")
+}
+
+model OrderHistory {
+  id              Int      @id @default(autoincrement())
+  order_id        Int
+  action          String?  @db.VarChar(255)   // kya action hua
+  changed_by      Int?                       // kaun change kar raha hai (user_id)
+  version         Int      @default(1)       // versioning
+  changes         Json?                      // detailed changes
+  changes_summary String?  @db.VarChar(255)  // short summary
+  created_at      DateTime @default(now())
+
+  order Order @relation(fields: [order_id], references: [id], onDelete: Cascade)
+
+  @@map("order_history")
 }
 
 model OrderItem {

@@ -17,7 +17,20 @@ export const placeOrder = async (req, res) => {
         if (!targetClass) return res.status(404).json({ success: false, message: "Class not found" });
         if (targetClass.process_status !== 'active') return res.status(403).json({ success: false, message: "Class is locked" });
 
-        const existingOrder = await prisma.order.findFirst({ where: { student_id: sid, status: { not: 2 } } });
+        // Check deadline (auto-lock)
+        if (targetClass.change_deadline && new Date() > new Date(targetClass.change_deadline)) {
+            if (req.user?.role !== 'admin') {
+                return res.status(403).json({ 
+                    success: false, 
+                    message: "Order deadline has passed. Changes are no longer allowed." 
+                });
+            }
+        }
+
+        const existingOrder = await prisma.order.findFirst({ 
+            where: { student_id: sid, status: { not: 2 } },
+            include: { order_items: true }
+        });
 
         const orderData = {
             student_id: sid,
@@ -30,9 +43,20 @@ export const placeOrder = async (req, res) => {
         let result;
         await prisma.$transaction(async (tx) => {
             let orderId;
+            let action = 'created';
+
             if (existingOrder) {
                 if (existingOrder.is_locked) throw new Error("Order is locked");
-                await tx.order.update({ where: { id: existingOrder.id }, data: { delivery_details: orderData.delivery_details, selected_logo_id: lid } });
+
+                action = 'updated';
+
+                await tx.order.update({ 
+                    where: { id: existingOrder.id }, 
+                    data: { 
+                        delivery_details: orderData.delivery_details, 
+                        selected_logo_id: lid
+                    } 
+                });
                 orderId = existingOrder.id;
                 await tx.orderItem.deleteMany({ where: { order_id: orderId } });
             } else {
@@ -49,7 +73,10 @@ export const placeOrder = async (req, res) => {
                 status: 0
             }));
             await tx.orderItem.createMany({ data: items });
-            result = { orderId, message: existingOrder ? "Order updated" : "Order created" };
+            result = { 
+                orderId, 
+                message: action === 'created' ? "Order created" : "Order updated"
+            };
         });
 
         res.json({ success: true, message: result.message, data: { orderId: result.orderId } });
@@ -139,3 +166,83 @@ export const getConfiguratorData = async (req, res) => {
         res.status(500).json({ success: false, error: err.message });
     }
 };
+
+export const getOrderHistory = async (req, res) => {
+    try {
+        const { orderId } = req.params;
+
+        if (!orderId) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Order ID is required" 
+            });
+        }
+
+        // Check if orderHistory model exists in Prisma client
+        if (!prisma.orderHistory) {
+            return res.status(503).json({ 
+                success: false, 
+                message: "Order history feature not yet migrated. Please run: npx prisma migrate dev --name add_order_versioning",
+                data: []
+            });
+        }
+
+        const history = await prisma.orderHistory.findMany({
+            where: { order_id: parseInt(orderId) },
+            orderBy: { version: 'desc' }
+        });
+
+        res.json({ 
+            success: true, 
+            data: history,
+            count: history.length 
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+export const getMyOrderHistory = async (req, res) => {
+    try {
+        const studentId = req.user.id;
+
+        // Check if orderHistory model exists in Prisma client
+        if (!prisma.orderHistory) {
+            return res.status(503).json({ 
+                success: false, 
+                message: "Order history feature not yet migrated. Please run: npx prisma migrate dev --name add_order_versioning",
+                data: []
+            });
+        }
+
+        const order = await prisma.order.findFirst({
+            where: { 
+                student_id: parseInt(studentId), 
+                status: { not: 2 } 
+            },
+            select: { id: true }
+        });
+
+        if (!order) {
+            return res.json({ 
+                success: true, 
+                message: "No order found",
+                data: [] 
+            });
+        }
+
+        const history = await prisma.orderHistory.findMany({
+            where: { order_id: order.id },
+            orderBy: { version: 'desc' }
+        });
+
+        res.json({ 
+            success: true, 
+            data: history,
+            count: history.length 
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
