@@ -131,22 +131,23 @@ model Logo {
   status         Int        @default(0)
   created_at     DateTime   @default(now())
 
-  school School @relation(fields: [school_id], references: [id], onDelete: Cascade)
-  user   User   @relation(fields: [uploaded_by], references: [id], onDelete: Cascade)
+  school School  @relation(fields: [school_id], references: [id], onDelete: Cascade)
+  user   User    @relation(fields: [uploaded_by], references: [id], onDelete: Cascade)
   orders Order[]
 
   @@map("logos")
 }
 
 model BackDesign {
-  id             Int          @id @default(autoincrement())
-  class_id       Int?
-  name           String       @db.VarChar(255)
-  file_path      String       @db.VarChar(255)
-  is_library     Boolean      @default(false)
-  process_status DesignStatus @default(uploaded)
-  status         Int          @default(0)
-  created_at     DateTime     @default(now())
+  id                 Int          @id @default(autoincrement())
+  class_id           Int?
+  name               String       @db.VarChar(255)
+  file_path          String       @db.VarChar(255)
+  is_library         Boolean      @default(false)
+  process_status     DesignStatus @default(uploaded)
+  status             Int          @default(0)
+  isFromConfigurator Boolean      @default(false)
+  created_at         DateTime     @default(now())
 
   class Classes? @relation(fields: [class_id], references: [id], onDelete: Cascade)
 
@@ -191,9 +192,9 @@ model Order {
   created_at       DateTime    @default(now())
   updated_at       DateTime    @default(now()) @updatedAt
 
-  student    User        @relation(fields: [student_id], references: [id], onDelete: Cascade)
-  class      Classes     @relation(fields: [class_id], references: [id], onDelete: Cascade)
-  logo       Logo?       @relation(fields: [selected_logo_id], references: [id], onDelete: SetNull)
+  student     User        @relation(fields: [student_id], references: [id], onDelete: Cascade)
+  class       Classes     @relation(fields: [class_id], references: [id], onDelete: Cascade)
+  logo        Logo?       @relation(fields: [selected_logo_id], references: [id], onDelete: SetNull)
   order_items OrderItem[]
 
   @@map("orders")

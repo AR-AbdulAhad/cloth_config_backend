@@ -4,7 +4,7 @@ import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { getStudentOverview, listStudents, generateRegistrationLink } from "../controllers/userController.js";
 import { listMyClass, editClass, getAssignedClass } from "../controllers/classController.js";
 import { uploadSchoolLogo, listMyLogos } from "../controllers/logoController.js";
-import { uploadClassBackDesign, listMyBackDesigns } from "../controllers/designController.js";
+import { uploadClassBackDesign, listMyBackDesigns, getConfiguratorBackDesign } from "../controllers/designController.js";
 import multer from "multer";
 import { getNameListForUser, addNameListItem, updateNameListItem, reorderNameListItems, markNameListReady, createNameList, deleteNameListItem } from "../controllers/nameListControllers.js";
 
@@ -70,7 +70,8 @@ router.get("/generate-registration-link", middleware, generateRegistrationLink);
 router.post("/upload-logo", middleware, uploadLogo.single("logo"), uploadSchoolLogo);
 router.post("/upload-back-design", middleware, uploadBackDesign.single("backDesign"), uploadClassBackDesign);
 router.post("/my-logos", middleware, listMyLogos);
-router.post("/my-back-designs", middleware, listMyBackDesigns);
+router.post("/back-designs", middleware, listMyBackDesigns);
+router.get("/class/:classId/configurator-back-design", middleware, getConfiguratorBackDesign);
 // Name List & Overview
 router.get("/name-list", middleware, getNameListForUser);
 router.post("/student-overview", middleware, getStudentOverview);

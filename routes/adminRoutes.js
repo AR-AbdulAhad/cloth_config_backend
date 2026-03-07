@@ -4,7 +4,7 @@ import { addSchool, listSchools, editSchool, removeSchool } from "../controllers
 import { addClassRep, listClassReps, editClassRep, removeClassRep } from "../controllers/userController.js";
 import { addClass, editClass, removeClass, listAllClasses, toggleClassStatus, lockClass, unlockClass } from "../controllers/classController.js";
 import { listSchoolLogos, approveLogo, rejectLogo } from "../controllers/logoController.js";
-import { listBackDesigns, approveBackDesign, rejectBackDesign } from "../controllers/designController.js";
+import { listBackDesigns, approveBackDesign, rejectBackDesign, getClassBackDesigns } from "../controllers/designController.js";
 import { generateProductionFiles, listProductionPackages } from "../controllers/productionController.js";
 import { assignClassRep } from "../controllers/classController.js";
 import { getDashboardStats, toggleEntityStatus } from "../controllers/adminController.js";
@@ -45,6 +45,7 @@ router.put("/reject-logo/:logoId", adminMiddleware, rejectLogo);
 
 // Back designs
 router.post("/back-designs", adminMiddleware, listBackDesigns);
+router.get("/class/:classId/back-designs", adminMiddleware, getClassBackDesigns);
 router.put("/approve-back-design/:id", adminMiddleware, approveBackDesign);
 router.put("/reject-back-design/:id", adminMiddleware, rejectBackDesign);
 router.put("/lock-class/:classId", adminMiddleware, lockClass);
