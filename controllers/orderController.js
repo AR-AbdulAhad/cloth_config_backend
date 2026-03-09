@@ -246,3 +246,87 @@ export const getMyOrderHistory = async (req, res) => {
     }
 };
 
+
+
+export const unlockOrder = async (req, res) => {
+    try {
+        const { orderId } = req.params;
+
+        if (!orderId) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Order ID is required" 
+            });
+        }
+
+        const order = await prisma.order.findUnique({
+            where: { id: parseInt(orderId) }
+        });
+
+        if (!order) {
+            return res.status(404).json({ 
+                success: false, 
+                message: "Order not found" 
+            });
+        }
+
+        await prisma.order.update({
+            where: { id: parseInt(orderId) },
+            data: { 
+                is_locked: false,
+                process_status: 'in_progress'
+            }
+        });
+
+        res.json({ 
+            success: true, 
+            message: "Order unlocked successfully. Student can now edit the order." 
+        });
+    } catch (err) {
+        res.status(500).json({ 
+            success: false, 
+            error: err.message 
+        });
+    }
+};
+
+export const lockOrder = async (req, res) => {
+    try {
+        const { orderId } = req.params;
+
+        if (!orderId) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Order ID is required" 
+            });
+        }
+
+        const order = await prisma.order.findUnique({
+            where: { id: parseInt(orderId) }
+        });
+
+        if (!order) {
+            return res.status(404).json({ 
+                success: false, 
+                message: "Order not found" 
+            });
+        }
+
+        await prisma.order.update({
+            where: { id: parseInt(orderId) },
+            data: { 
+                is_locked: true
+            }
+        });
+
+        res.json({ 
+            success: true, 
+            message: "Order locked successfully. Student cannot edit anymore." 
+        });
+    } catch (err) {
+        res.status(500).json({ 
+            success: false, 
+            error: err.message 
+        });
+    }
+};

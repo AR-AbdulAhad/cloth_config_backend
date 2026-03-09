@@ -147,6 +147,7 @@ model BackDesign {
   process_status     DesignStatus @default(uploaded)
   status             Int          @default(0)
   isFromConfigurator Boolean      @default(false)
+  designColor        String?      @db.VarChar(20)
   created_at         DateTime     @default(now())
 
   class Classes? @relation(fields: [class_id], references: [id], onDelete: Cascade)

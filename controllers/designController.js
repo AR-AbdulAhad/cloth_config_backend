@@ -27,12 +27,20 @@ import prisma from "../config/prisma.js";
 export const uploadClassBackDesign = async (req, res) => {
     try {
         const classId = req.user.class_id;
-        const { name, isFromConfigurator } = req.body;
+        const { name, isFromConfigurator, designColor } = req.body;
 
         if (!classId) return res.status(400).json({ success: false, message: "User not assigned to any class" });
         if (!req.file) return res.status(400).json({ success: false, message: "No file uploaded" });
 
         const isConfigurator = isFromConfigurator === 'true' || isFromConfigurator === true;
+
+        // Validate designColor if provided
+        if (designColor && !['white', 'black'].includes(designColor.toLowerCase())) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid design color. Only 'white' or 'black' are allowed."
+            });
+        }
 
         // Check agar isFromConfigurator true hai aur already ek design exist karta hai
         if (isConfigurator) {
@@ -61,7 +69,8 @@ export const uploadClassBackDesign = async (req, res) => {
                 is_library: false,
                 process_status: 'uploaded',
                 status: 1,
-                isFromConfigurator: isConfigurator
+                isFromConfigurator: isConfigurator,
+                designColor: designColor ? designColor.toLowerCase() : null
             }
         });
 
@@ -74,13 +83,22 @@ export const uploadClassBackDesign = async (req, res) => {
 export const reUploadClassBackDesign = async (req, res) => {
     try {
         const classId = req.user.class_id;
-        const { name, isFromConfigurator } = req.body;
+        const { name, isFromConfigurator, designColor } = req.body;
         const designId = req.params.id;
 
         if (!classId) return res.status(400).json({ success: false, message: "User not assigned to any class" });
         if (!req.file) return res.status(400).json({ success: false, message: "No file uploaded" });
 
         const isConfigurator = isFromConfigurator === 'true' || isFromConfigurator === true;
+
+        // Validate designColor if provided
+        if (designColor && !['white', 'black'].includes(designColor.toLowerCase())) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid design color. Only 'white' or 'black' are allowed."
+            });
+        }
+
         const design = await prisma.backDesign.update({
             where: { id: parseInt(designId) },
             data: {
@@ -90,7 +108,8 @@ export const reUploadClassBackDesign = async (req, res) => {
                 is_library: false,
                 process_status: 'uploaded',
                 status: 1,
-                isFromConfigurator: isConfigurator
+                isFromConfigurator: isConfigurator,
+                designColor: designColor ? designColor.toLowerCase() : null
             }
         });
 

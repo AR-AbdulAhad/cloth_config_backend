@@ -9,7 +9,7 @@ import { generateProductionFiles, listProductionPackages } from "../controllers/
 import { assignClassRep } from "../controllers/classController.js";
 import { getDashboardStats, toggleEntityStatus } from "../controllers/adminController.js";
 import { getClassNameList, approveNameList, rejectNameList, getAllNameList, unlockNameList } from "../controllers/nameListControllers.js";
-import { getAllOrders, getOrderDetails, getOrderHistory } from "../controllers/orderController.js";
+import { getAllOrders, getOrderDetails, getOrderHistory, unlockOrder, lockOrder } from "../controllers/orderController.js";
 
 const router = express.Router();
 
@@ -63,6 +63,8 @@ router.put("/namelist/:id/unlock", adminMiddleware, unlockNameList);
 router.get("/orders/list", adminMiddleware, getAllOrders);
 router.get("/orders/:orderId/details", adminMiddleware, getOrderDetails);
 router.get("/orders/:orderId/history", adminMiddleware, getOrderHistory);
+router.put("/orders/:orderId/unlock", adminMiddleware, unlockOrder);
+router.put("/orders/:orderId/lock", adminMiddleware, lockOrder);
 
 // Production Packages
 router.post("/generate-files/:classId", adminMiddleware, generateProductionFiles);
