@@ -32,15 +32,15 @@ export const login = async (req, res) => {
             });
         }
 
-        // if (user.role === "class_representative") {
-        //     if (!user.class_id) {
-        //         return res.status(400).json({
-        //             success: false,
-        //             message: "This class representative has no class assigned."
-        //         });
-        //     }
-        //     // user.class_id is assigned, continue
-        // }
+        if (user.role === "class_representative") {
+            if (!user.class_id) {
+                return res.status(400).json({
+                    success: false,
+                    message: "This class representative has no class assigned."
+                });
+            }
+            // user.class_id is assigned, continue
+        }
 
 
         if (user.status === 1) {
