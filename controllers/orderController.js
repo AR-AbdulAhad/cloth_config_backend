@@ -1,89 +1,89 @@
 import prisma from "../config/prisma.js";
 
-export const placeOrder = async (req, res) => {
-    try {
-        let { student_id, class_id, garments, delivery_details, logo_id } = req.body;
+// export const placeOrder = async (req, res) => {
+//     try {
+//         let { student_id, class_id, garments, delivery_details, logo_id } = req.body;
 
-        if (!student_id || !class_id) return res.status(400).json({ success: false, message: "Missing student_id or class_id" });
+//         if (!student_id || !class_id) return res.status(400).json({ success: false, message: "Missing student_id or class_id" });
 
-        const sid = Number(student_id);
-        const cid = Number(class_id);
-        const lid = logo_id ? Number(logo_id) : null;
+//         const sid = Number(student_id);
+//         const cid = Number(class_id);
+//         const lid = logo_id ? Number(logo_id) : null;
 
-        if (garments && !Array.isArray(garments)) garments = [garments];
-        if (!garments || garments.length === 0) return res.status(400).json({ success: false, message: "Garments array empty" });
+//         if (garments && !Array.isArray(garments)) garments = [garments];
+//         if (!garments || garments.length === 0) return res.status(400).json({ success: false, message: "Garments array empty" });
 
-        const targetClass = await prisma.classes.findUnique({ where: { id: cid } });
-        if (!targetClass) return res.status(404).json({ success: false, message: "Class not found" });
-        if (targetClass.process_status !== 'active') return res.status(403).json({ success: false, message: "Class is locked" });
+//         const targetClass = await prisma.classes.findUnique({ where: { id: cid } });
+//         if (!targetClass) return res.status(404).json({ success: false, message: "Class not found" });
+//         if (targetClass.process_status !== 'active') return res.status(403).json({ success: false, message: "Class is locked" });
 
-        // Check deadline (auto-lock)
-        if (targetClass.change_deadline && new Date() > new Date(targetClass.change_deadline)) {
-            if (req.user?.role !== 'admin') {
-                return res.status(403).json({ 
-                    success: false, 
-                    message: "Order deadline has passed. Changes are no longer allowed." 
-                });
-            }
-        }
+//         // Check deadline (auto-lock)
+//         if (targetClass.change_deadline && new Date() > new Date(targetClass.change_deadline)) {
+//             if (req.user?.role !== 'admin') {
+//                 return res.status(403).json({ 
+//                     success: false, 
+//                     message: "Order deadline has passed. Changes are no longer allowed." 
+//                 });
+//             }
+//         }
 
-        const existingOrder = await prisma.order.findFirst({ 
-            where: { student_id: sid, status: { not: 2 } },
-            include: { order_items: true }
-        });
+//         const existingOrder = await prisma.order.findFirst({ 
+//             where: { student_id: sid, status: { not: 2 } },
+//             include: { order_items: true }
+//         });
 
-        const orderData = {
-            student_id: sid,
-            class_id: cid,
-            delivery_details: delivery_details ? JSON.stringify(delivery_details) : null,
-            selected_logo_id: lid,
-            status: 0
-        };
+//         const orderData = {
+//             student_id: sid,
+//             class_id: cid,
+//             delivery_details: delivery_details ? JSON.stringify(delivery_details) : null,
+//             selected_logo_id: lid,
+//             status: 0
+//         };
 
-        let result;
-        await prisma.$transaction(async (tx) => {
-            let orderId;
-            let action = 'created';
+//         let result;
+//         await prisma.$transaction(async (tx) => {
+//             let orderId;
+//             let action = 'created';
 
-            if (existingOrder) {
-                if (existingOrder.is_locked) throw new Error("Order is locked");
+//             if (existingOrder) {
+//                 if (existingOrder.is_locked) throw new Error("Order is locked");
 
-                action = 'updated';
+//                 action = 'updated';
 
-                await tx.order.update({ 
-                    where: { id: existingOrder.id }, 
-                    data: { 
-                        delivery_details: orderData.delivery_details, 
-                        selected_logo_id: lid
-                    } 
-                });
-                orderId = existingOrder.id;
-                await tx.orderItem.deleteMany({ where: { order_id: orderId } });
-            } else {
-                const newOrder = await tx.order.create({ data: orderData });
-                orderId = newOrder.id;
-            }
+//                 await tx.order.update({ 
+//                     where: { id: existingOrder.id }, 
+//                     data: { 
+//                         delivery_details: orderData.delivery_details, 
+//                         selected_logo_id: lid
+//                     } 
+//                 });
+//                 orderId = existingOrder.id;
+//                 await tx.orderItem.deleteMany({ where: { order_id: orderId } });
+//             } else {
+//                 const newOrder = await tx.order.create({ data: orderData });
+//                 orderId = newOrder.id;
+//             }
 
-            const items = garments.map(item => ({
-                order_id: orderId,
-                product_type: item.product_type || item.type || "UNKNOWN",
-                selectedColor: item.selectedColor || item.color || null,
-                selectedSize: item.selectedSize || item.size || null,
-                design_config: item.design_config || item,
-                status: 0
-            }));
-            await tx.orderItem.createMany({ data: items });
-            result = { 
-                orderId, 
-                message: action === 'created' ? "Order created" : "Order updated"
-            };
-        });
+//             const items = garments.map(item => ({
+//                 order_id: orderId,
+//                 product_type: item.product_type || item.type || "UNKNOWN",
+//                 selectedColor: item.selectedColor || item.color || null,
+//                 selectedSize: item.selectedSize || item.size || null,
+//                 design_config: item.design_config || item,
+//                 status: 0
+//             }));
+//             await tx.orderItem.createMany({ data: items });
+//             result = { 
+//                 orderId, 
+//                 message: action === 'created' ? "Order created" : "Order updated"
+//             };
+//         });
 
-        res.json({ success: true, message: result.message, data: { orderId: result.orderId } });
-    } catch (err) {
-        res.status(err.message === "Order is locked" ? 403 : 500).json({ success: false, error: err.message });
-    }
-};
+//         res.json({ success: true, message: result.message, data: { orderId: result.orderId } });
+//     } catch (err) {
+//         res.status(err.message === "Order is locked" ? 403 : 500).json({ success: false, error: err.message });
+//     }
+// };
 
 export const getMyOrder = async (req, res) => {
     try {
@@ -102,29 +102,79 @@ export const getAllOrders = async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
-
         const skip = (page - 1) * limit;
 
-        // Get total count (for frontend pagination)
+        let whereClause = { status: { not: 2 } };
+        
+        if (req.user.role === 'class_representative') {
+            if (!req.user.class_id) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: "Class representative has no assigned class" 
+                });
+            }
+            whereClause.class_id = req.user.class_id;
+        }
+
         const total = await prisma.order.count({
-            where: { status: { not: 2 } }
+            where: whereClause
         });
 
         const orders = await prisma.order.findMany({
-            where: { status: { not: 2 } },
+            where: whereClause,
             skip,
             take: limit,
-            orderBy: { created_at: 'desc' }, // optional but recommended
+            orderBy: { created_at: 'desc' },
             include: {
-                student: { select: { name: true, email: true } },
-                class: { select: { name: true } },
-                logo: true
+                student: { 
+                    select: { 
+                        name: true, 
+                        email: true,
+                        phone_number: true 
+                    } 
+                },
+                class: { 
+                    select: { 
+                        name: true,
+                        graduation_year: true,
+                        change_deadline: true,
+                        school_id: true 
+                    } 
+                },
+                logo: true,
+                order_items: {
+                    where: { status: { not: 2 } }
+                }
             }
+        });
+
+        const processedOrders = orders.map(order => {
+            const deadlinePassed =
+                order.class?.change_deadline &&
+                new Date() > new Date(order.class.change_deadline);
+
+            let isLocked = order.is_locked || deadlinePassed;
+            let status = order.process_status;
+
+            if (deadlinePassed && status === 'in_progress') {
+                status = 'completed';
+                isLocked = true;
+            }
+
+            if (status === 'completed') {
+                isLocked = true;
+            }
+
+            return {
+                ...order,
+                is_locked: isLocked,
+                process_status: status
+            };
         });
 
         res.json({
             success: true,
-            data: orders,
+            data: processedOrders,
             pagination: {
                 total,
                 page,

@@ -244,7 +244,7 @@ export const getSidebarMenus = async (req, res) => {
                 { title: 'Logo Upload', path: '/upload-files', icon: 'CloudUploadIcon' },
                 { title: 'Back Design Configurator', path: '/back-design-configurator', icon: 'CloudUploadIcon' },
                 { title: 'Name List', path: '/namelist', icon: 'FormatListBulletedIcon' },
-                // { title: 'Orders Review', path: '/orders', icon: 'ReceiptIcon' },
+                { title: 'Orders List', path: '/orders-list', icon: 'FolderZipIcon' },
             ];
         } else if (role === 'student') {
             menus = [

@@ -48,6 +48,7 @@ enum NameListStatus {
 
 enum OrderStatus {
   in_progress
+  pending_payment
   completed
   cancelled
 }
@@ -189,7 +190,9 @@ model Order {
   is_locked        Boolean     @default(false)
   process_status   OrderStatus @default(in_progress)
   status           Int         @default(0)
-  version          Int         @default(1)        
+  version          Int         @default(1)     
+  stripe_payment_intent String? @db.VarChar(255)
+  stripe_session_id    String? @db.VarChar(255)
   created_at       DateTime    @default(now())
   updated_at       DateTime    @default(now()) @updatedAt
 
