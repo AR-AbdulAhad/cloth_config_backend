@@ -12,9 +12,11 @@ export const authMiddleware = (requiredRole) => {
             const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
             req.user = decoded;
 
-            if (requiredRole && req.user.role !== requiredRole && req.user.role !== 'admin') {
-                // Admin usually has access to everything, but check specific requirements
-                // "Class Representative: Access to own class only" -> logic inside controller usually
+            // Allow both admin and class_representative to have elevated access
+            if (requiredRole && 
+                req.user.role !== requiredRole && 
+                req.user.role !== 'admin' && 
+                req.user.role !== 'class_representative') {
                 return res.status(403).json({ message: "Insufficient permissions" });
             }
 

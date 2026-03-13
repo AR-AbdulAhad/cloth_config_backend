@@ -2,7 +2,7 @@ import express from "express";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import {
     getConfiguratorData,
-    placeOrder,
+    // placeOrder,
     getMyOrder,
     getMyOrderHistory
 } from "../controllers/orderController.js";
@@ -17,9 +17,10 @@ router.get("/my-order", studentAuth, getMyOrder);
 router.get("/my-order-history", studentAuth, getMyOrderHistory);
 // router.post("/back-designs", studentAuth, listMyBackDesigns);
 router.post("/back-designs", studentAuth, getMyClassBackDesign);
-router.post("/place-order", studentAuth, placeOrder);
+// router.post("/place-order", studentAuth, placeOrder);
 router.post("/logos", studentAuth, listSchoolLogos);
 router.post("/class-back-designs", studentAuth, listBackDesigns);
 router.get("/configurator-back-design", studentAuth, getConfiguratorBackDesign);
 
 export default router;
+
