@@ -176,7 +176,7 @@ export const getMyClassBackDesign = async (req, res) => {
         });
 
         if (!design) {
-            return res.status(404).json({ success: false, message: "Back design not found" });
+            return res.json({ success: true, data: null, message: "No back design found for this class" });
         }
 
         res.json({ success: true, data: design });
