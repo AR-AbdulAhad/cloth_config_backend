@@ -214,11 +214,12 @@ model Order {
 model OrderHistory {
   id              Int      @id @default(autoincrement())
   order_id        Int
-  action          String?  @db.VarChar(255)   // kya action hua
-  changed_by      Int?                       // kaun change kar raha hai (user_id)
-  version         Int      @default(1)       // versioning
-  changes         Json?                      // detailed changes
-  changes_summary String?  @db.VarChar(255)  // short summary
+  action          String?  @db.VarChar(255)
+  changed_by      Int?
+  version         Int      @default(1)
+  changes         Json?
+  changes_summary String?  @db.VarChar(255)
+  status          Int      @default(0)          // 0 = visible, 2 = deleted
   created_at      DateTime @default(now())
 
   order Order @relation(fields: [order_id], references: [id], onDelete: Cascade)

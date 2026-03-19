@@ -438,6 +438,12 @@ export const getDashboardData = async (req, res) => {
             }
         });
 
+        // --- Emit Socket Event for real-time update ---
+        if (req.io) {
+            req.io.emit(`order_update_${studentId}`, { action: versionAction, version: orderData.version });
+            req.io.emit('new_order_admin', { studentId, action: versionAction });
+        }
+
         return res.json({
             success: true,
             message: existingOrder ? `Order updated (Version ${orderData.version})` : "Order created",
@@ -475,6 +481,69 @@ export const getMyOrder = async (req, res) => {
         res.json({
             success: true,
             data: order
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// Get Order History for a student
+export const getMyOrderHistory = async (req, res) => {
+    try {
+        const studentId = req.user.id;
+        const history = await prisma.orderHistory.findMany({
+            where: {
+                order: { student_id: parseInt(studentId) },
+                status: { not: 2 }
+            },
+            include: {
+              order: {
+                include: {
+                  order_items: true
+                }
+              }
+            },
+            orderBy: { created_at: 'desc' }
+        });
+
+        res.json({
+            success: true,
+            data: history
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// Delete a history entry
+export const deleteHistory = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const studentId = req.user.id;
+
+        // Verify ownership and delete (soft delete)
+        const history = await prisma.orderHistory.findUnique({
+            where: { id: parseInt(id) },
+            include: { order: true }
+        });
+
+        if (!history || history.order.student_id !== studentId) {
+            return res.status(403).json({ success: false, message: "Unauthorized to delete this history." });
+        }
+
+        await prisma.orderHistory.update({
+            where: { id: parseInt(id) },
+            data: { status: 2 } // Soft delete
+        });
+
+        // Emit socket event
+        if (req.io) {
+            req.io.emit(`history_update_${studentId}`, { action: 'deleted', id });
+        }
+
+        res.json({
+            success: true,
+            message: "History entry deleted."
         });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });

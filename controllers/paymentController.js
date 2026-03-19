@@ -424,8 +424,15 @@ export const stripeWebhook = async (req, res) => {
                     where: { order_id: order_id },
                     data: { status: 1 }
                 });
-
+                
                 console.log(`✅ Order ${order_id} updated: Paid ${newTotalPaid}/${totalAmount}. Edit deadline set to ${editDeadline}`);
+
+                // Emit socket events
+                const io = req.app.get('io');
+                if (io) {
+                    io.emit(`order_update_${order.student_id}`, { action: 'payment_received', payment_status, process_status });
+                    io.emit('new_order_admin', { studentId: order.student_id, action: 'paid' });
+                }
             }
         } catch (error) {
             console.error(`❌ Error updating order after payment:`, error);

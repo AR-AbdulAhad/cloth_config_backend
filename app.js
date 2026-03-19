@@ -9,10 +9,38 @@ import paymentRoutes from "./routes/paymentRoutes.js";
 import cors from "cors";
 import path from "path";
 
+import { Server } from "socket.io";
+import http from "http";
+
 dotenv.config();
 
 const app = express();
+const httpServer = http.createServer(app);
+const io = new Server(httpServer, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    }
+});
+
 const PORT = process.env.PORT || 5000;
+
+// ✅ Attach io to app for access in routes
+app.set("io", io);
+
+// ✅ Socket.io Connection Logic
+io.on("connection", (socket) => {
+    console.log(`🔌 Client connected: ${socket.id}`);
+
+    socket.on("join", (roomId) => {
+        socket.join(roomId);
+        console.log(`👤 Client joined room: ${roomId}`);
+    });
+
+    socket.on("disconnect", () => {
+        console.log(`🔌 Client disconnected: ${socket.id}`);
+    });
+});
 
 // ✅ Enable CORS globally
 app.use(cors());
@@ -30,16 +58,23 @@ app.use(express.urlencoded({ extended: true }));
 // Serve uploads
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
+// Intermediate Middleware to inject io 
+app.use((req, res, next) => {
+    req.io = io;
+    next();
+});
+
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/class-rep", classRepRoutes);
 app.use("/api/student", studentRoutes);
 app.use("/api/payment", paymentRoutes);
+
 app.get("/", (req, res) => {
-    res.send("StudentLife Backend API v1.5 is running");
+    res.send("StudentLife Backend API v1.5 with Realtime Sockets is running");
 });
-app.get("/uploads")
+
 // Multer error handler
 app.use((err, req, res, next) => {
     if (err instanceof multer.MulterError) {
@@ -60,6 +95,6 @@ app.use((req, res, next) => {
     next();
 });
 
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+httpServer.listen(PORT, () => {
+    console.log(`Server is running with Sockets on port ${PORT}`);
 });
