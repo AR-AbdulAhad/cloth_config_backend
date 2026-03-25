@@ -245,6 +245,8 @@ export const getSidebarMenus = async (req, res) => {
                 { title: 'Back Design Configurator', path: '/back-design-configurator', icon: 'CloudUploadIcon' },
                 { title: 'Name List', path: '/namelist', icon: 'FormatListBulletedIcon' },
                 { title: 'Orders List', path: '/orders-list', icon: 'FolderZipIcon' },
+                { title: 'Student Overview', path: '/student-overview', icon: 'FolderZipIcon' },
+                { title: 'Orders List', path: '/orders-list', icon: 'FolderZipIcon' },
             ];
         } else if (role === 'student') {
             menus = [

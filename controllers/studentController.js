@@ -237,64 +237,179 @@ export const getDashboardData = async (req, res) => {
             return res.status(403).json({ success: false, message: "Class is locked. No new orders or changes allowed." });
         }
 
-        // --- Check existing order ---
+        // --- Find Existing Order ---
         const existingOrder = await prisma.order.findFirst({
-            where: {
-                student_id: studentId,
-                status: { not: 2 } // Assuming 2 is "cancelled" or similar
-            }
+            where: { student_id: studentId, class_id: classId },
+            include: { order_items: true }
         });
+
+        // --- Versioning & History Setup ---
+        let versionAction = 'created';
+        let previousState = null;
+
+        if (existingOrder) {
+            versionAction = 'updated';
+            // Fetch detailed previous state for history
+            previousState = await prisma.order.findUnique({
+                where: { id: existingOrder.id },
+                include: { order_items: true }
+            });
+
+            if (existingOrder.is_locked) {
+                return res.status(403).json({ success: false, message: "Order is locked and cannot be modified." });
+            }
+
+            const now = new Date();
+
+            // --- Check Post-Payment Edit Deadline ---
+            if (existingOrder.payment_status === 'paid' && existingOrder.edit_deadline) {
+                if (now > new Date(existingOrder.edit_deadline)) {
+                    await prisma.order.update({
+                        where: { id: existingOrder.id },
+                        data: { is_locked: true }
+                    });
+                    return res.status(403).json({ 
+                        success: false, 
+                        message: "The 3-day post-payment edit window has expired. Order is now locked." 
+                    });
+                }
+
+                // If paid and within deadline, restrict design changes of existing items
+                // (Only allow delivery details and logo updates, or adding NEW items)
+                // However, for simplicity in this save function, if anything in garments changed 
+                // compared to existing, we should check if they are trying to sneak in a design change.
+                const existingItems = existingOrder.order_items;
+                const isDesignChanged = garments && garments.some(g => {
+                    const existing = existingItems.find(ei => ei.product_type === g.product_type);
+                    if (!existing) return false; // This is a NEW item, allowed (but should go through payment)
+                    return JSON.stringify(existing.design_config) !== JSON.stringify(g.design_config || g);
+                });
+
+                if (isDesignChanged) {
+                    return res.status(403).json({ 
+                        success: false, 
+                        message: "Design is locked after payment. You can only update delivery details or add new items." 
+                    });
+                }
+            }
+
+            // --- Enforce 3 Business Days Policy for UNPAID orders ---
+            if (existingOrder.payment_status === 'unpaid') {
+                const createdAt = new Date(existingOrder.created_at);
+                let businessDaysDiff = 0;
+                let checkDate = new Date(createdAt);
+                while (checkDate < now) {
+                    checkDate.setDate(checkDate.getDate() + 1);
+                    const day = checkDate.getDay();
+                    if (day !== 0 && day !== 6) businessDaysDiff++;
+                }
+
+                if (businessDaysDiff > 3) {
+                    await prisma.order.update({
+                        where: { id: existingOrder.id },
+                        data: { is_locked: true }
+                    });
+                    return res.status(403).json({ 
+                        success: false, 
+                        message: "The 3-business-day change period for unpaid orders has expired. Order is now locked." 
+                    });
+                }
+            }
+            
+            // Also check class deadline
+            if (targetClass.change_deadline && now > new Date(targetClass.change_deadline)) {
+                 return res.status(403).json({ success: false, message: "Class order deadline has passed." });
+            }
+        }
+
+        // --- Calculate Total Amount ---
+        const PRICES = {
+            'T-SHIRT': 200,
+            'SWEATSHIRT': 350,
+            'HOODIE': 450,
+            'ZIPPERHOODIE': 500,
+            'SWEATPANTS': 300,
+            'SHORTS': 250
+        };
+
+        let currentTotal = 0;
+        if (garments && garments.length > 0) {
+            garments.forEach(item => {
+                const type = item.product_type || item.type;
+                currentTotal += PRICES[type] || 0;
+            });
+        }
 
         const orderData = {
             student_id: studentId,
             class_id: classId,
             delivery_details: delivery_details ? JSON.stringify(delivery_details) : null,
             selected_logo_id: logoId,
-            status: 0
+            process_status: "saved", // Use 'saved' instead of 'in_progress'
+            total_amount: currentTotal,
+            status: 0,
+            version: existingOrder ? existingOrder.version + 1 : 1
         };
 
-        let result;
+        let finalOrderId;
+        let changesSummary = [];
 
-        // --- Transaction: Create/Update Order & Items ---
+        // --- Transaction: Create/Update Order & Items & History ---
         await prisma.$transaction(async (tx) => {
-            let orderId;
-
             if (existingOrder) {
-                if (existingOrder.is_locked) {
-                    throw new Error("Order is locked and cannot be modified.");
-                }
+                // Capture changes for history
+                if (previousState.selected_logo_id !== orderData.selected_logo_id) changesSummary.push("Logo selection");
+                if (previousState.delivery_details !== orderData.delivery_details) changesSummary.push("Delivery details");
+                // Garments will occupy a summary entry if they change (detected by the update itself)
+                changesSummary.push("Design/Garment updates");
 
                 // Update existing order
                 await tx.order.update({
                     where: { id: existingOrder.id },
                     data: {
                         delivery_details: orderData.delivery_details,
-                        selected_logo_id: orderData.selected_logo_id
+                        selected_logo_id: orderData.selected_logo_id,
+                        process_status: orderData.process_status,
+                        total_amount: orderData.total_amount,
+                        version: orderData.version,
+                        updated_at: new Date()
                     }
                 });
-                orderId = existingOrder.id;
+                finalOrderId = existingOrder.id;
 
                 // Delete old items
                 await tx.orderItem.deleteMany({
-                    where: { order_id: orderId }
+                    where: { order_id: finalOrderId }
                 });
 
             } else {
                 // Create new order
                 const newOrder = await tx.order.create({
-                    data: orderData
+                    data: {
+                        student_id: orderData.student_id,
+                        class_id: orderData.class_id,
+                        delivery_details: orderData.delivery_details,
+                        selected_logo_id: orderData.selected_logo_id,
+                        process_status: orderData.process_status,
+                        total_amount: orderData.total_amount,
+                        amount_paid: 0,
+                        payment_status: "unpaid",
+                        version: 1,
+                        status: 0
+                    }
                 });
-                orderId = newOrder.id;
+                finalOrderId = newOrder.id;
+                changesSummary.push("Initial order placement");
             }
 
             // Create order items
             if (garments && Array.isArray(garments)) {
                 const itemData = garments.map(item => ({
-                    order_id: orderId,
+                    order_id: finalOrderId,
                     product_type: item.product_type || item.type || "UNKNOWN",
                     selectedColor: item.selectedColor || item.color || null,
                     selectedSize: item.selectedSize || item.size || null,
-                    design_config: item.design_config || item, // fallback to entire object
+                    design_config: item.design_config || item,
                     status: 0
                 }));
 
@@ -303,13 +418,36 @@ export const getDashboardData = async (req, res) => {
                 }
             }
 
-            result = { orderId, message: existingOrder ? "Order updated" : "Order created" };
+            // --- Track History ---
+            if (previousState) {
+                await tx.orderHistory.create({
+                    data: {
+                        order_id: finalOrderId,
+                        action: versionAction,
+                        changed_by: studentId,
+                        version: previousState.version, // Record the state BEFORE this update
+                        changes: {
+                            previousLogo: previousState.selected_logo_id,
+                            previousDelivery: previousState.delivery_details,
+                            previousItems: previousState.order_items,
+                            previousTotal: previousState.total_amount
+                        },
+                        changes_summary: `Version ${previousState.version} saved. Changes: ${changesSummary.join(", ")}`
+                    }
+                });
+            }
         });
+
+        // --- Emit Socket Event for real-time update ---
+        if (req.io) {
+            req.io.emit(`order_update_${studentId}`, { action: versionAction, version: orderData.version });
+            req.io.emit('new_order_admin', { studentId, action: versionAction });
+        }
 
         return res.json({
             success: true,
-            message: result.message,
-            data: { orderId: result.orderId }
+            message: existingOrder ? `Order updated (Version ${orderData.version})` : "Order created",
+            data: { orderId: finalOrderId, version: orderData.version }
         });
 
     } catch (err) {
@@ -335,13 +473,77 @@ export const getMyOrder = async (req, res) => {
                 order_items: {
                     where: { status: { not: 2 } }
                 },
-                logo: true
+                logo: true,
+                class: true
             }
         });
 
         res.json({
             success: true,
             data: order
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// Get Order History for a student
+export const getMyOrderHistory = async (req, res) => {
+    try {
+        const studentId = req.user.id;
+        const history = await prisma.orderHistory.findMany({
+            where: {
+                order: { student_id: parseInt(studentId) },
+                status: { not: 2 }
+            },
+            include: {
+              order: {
+                include: {
+                  order_items: true
+                }
+              }
+            },
+            orderBy: { created_at: 'desc' }
+        });
+
+        res.json({
+            success: true,
+            data: history
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// Delete a history entry
+export const deleteHistory = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const studentId = req.user.id;
+
+        // Verify ownership and delete (soft delete)
+        const history = await prisma.orderHistory.findUnique({
+            where: { id: parseInt(id) },
+            include: { order: true }
+        });
+
+        if (!history || history.order.student_id !== studentId) {
+            return res.status(403).json({ success: false, message: "Unauthorized to delete this history." });
+        }
+
+        await prisma.orderHistory.update({
+            where: { id: parseInt(id) },
+            data: { status: 2 } // Soft delete
+        });
+
+        // Emit socket event
+        if (req.io) {
+            req.io.emit(`history_update_${studentId}`, { action: 'deleted', id });
+        }
+
+        res.json({
+            success: true,
+            message: "History entry deleted."
         });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });

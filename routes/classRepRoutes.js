@@ -1,8 +1,9 @@
 import express from "express";
 import path from "path";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
-import { getStudentOverview, listStudents, generateRegistrationLink } from "../controllers/userController.js";
-import { listMyClass, editClass, getAssignedClass } from "../controllers/classController.js";
+import { generateRegistrationLink } from "../controllers/userController.js";
+import { getStudentOverview, listStudents, getAssignedClass } from "../controllers/classRepController.js";
+import { listMyClass, editClass } from "../controllers/classController.js";
 import { uploadSchoolLogo, listMyLogos } from "../controllers/logoController.js";
 import { uploadClassBackDesign, listMyBackDesigns, getConfiguratorBackDesign, reUploadClassBackDesign } from "../controllers/designController.js";
 import multer from "multer";

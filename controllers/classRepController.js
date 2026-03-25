@@ -176,7 +176,7 @@ export const listStudents = async (req, res) => {
             const latestOrder = student.orders?.[0];
             let status = 'Registered';
             if (latestOrder) {
-                status = latestOrder.process_status === 'completed' ? 'Order completed' : 'In progress';
+                status = latestOrder.process_status === 'completed' ? 'Order Completed' : 'In Progress';
             }
             return {
                 id: student.id,
@@ -511,7 +511,7 @@ export const getStudentOverview = async (req, res) => {
             const latestOrder = student.orders?.[0];
             let status = 'Registered';
             if (latestOrder) {
-                status = latestOrder.process_status === 'completed' ? 'Order completed' : 'In progress';
+                status = latestOrder.process_status === 'completed' ? 'Order Completed' : 'In Progress';
             }
             return {
                 id: student.id,
