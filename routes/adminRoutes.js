@@ -5,9 +5,9 @@ import { addClassRep, listClassReps, editClassRep, removeClassRep } from "../con
 import { addClass, editClass, removeClass, listAllClasses, toggleClassStatus, lockClass, unlockClass } from "../controllers/classController.js";
 import { listSchoolLogos, approveLogo, rejectLogo } from "../controllers/logoController.js";
 import { listBackDesigns, approveBackDesign, rejectBackDesign, getClassBackDesigns } from "../controllers/designController.js";
-import { generateProductionFiles, listProductionPackages } from "../controllers/productionController.js";
+import { generateProductionFiles, listProductionPackages, sendClassStatusEmail, sendFollowUpToClass } from "../controllers/productionController.js";
 import { assignClassRep } from "../controllers/classController.js";
-import { getDashboardStats, toggleEntityStatus } from "../controllers/adminController.js";
+import { getDashboardStats, toggleEntityStatus, sendDeadlineReminder, testEmail } from "../controllers/adminController.js";
 import { getClassNameList, approveNameList, rejectNameList, getAllNameList, unlockNameList } from "../controllers/nameListControllers.js";
 import { getAllOrders, getOrderDetails, getOrderHistory, unlockOrder, lockOrder } from "../controllers/orderController.js";
 
@@ -69,5 +69,11 @@ router.put("/orders/:orderId/lock", adminMiddleware, lockOrder);
 // Production Packages
 router.post("/generate-files/:classId", adminMiddleware, generateProductionFiles);
 router.post("/production-packages", adminMiddleware, listProductionPackages);
+
+// Email Actions
+router.post("/class/:classId/send-deadline-reminder", adminMiddleware, sendDeadlineReminder);
+router.post("/class/:classId/send-status-email", adminMiddleware, sendClassStatusEmail);
+router.post("/class/:classId/send-followup-email", adminMiddleware, sendFollowUpToClass);
+router.post("/test-email", adminMiddleware, testEmail);
 
 export default router;

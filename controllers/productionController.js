@@ -1,6 +1,7 @@
 import prisma from "../config/prisma.js";
 import { generatePDF } from "../utils/pdfGenerator.js";
 import { generateExcel } from "../utils/excelGenerator.js";
+import { sendStatusEmail, sendFollowUpEmail } from "../utils/emailService.js";
 
 export const generateProductionFiles = async (req, res) => {
     const classId = parseInt(req.params.classId);
@@ -71,6 +72,84 @@ export const listProductionPackages = async (req, res) => {
         ]);
 
         res.json({ success: true, data: packages, pagination: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) } });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// Send status email (production_ready / shipped / completed) to all students in a class
+export const sendClassStatusEmail = async (req, res) => {
+    try {
+        const classId = parseInt(req.params.classId);
+        const { status, trackingCode } = req.body;
+
+        const validStatuses = ['production_ready', 'shipped', 'completed'];
+        if (!validStatuses.includes(status)) {
+            return res.status(400).json({ success: false, message: `status must be one of: ${validStatuses.join(', ')}` });
+        }
+
+        const orders = await prisma.order.findMany({
+            where: { class_id: classId, status: { not: 2 } },
+            include: {
+                student: { select: { name: true, email: true } },
+                class: { select: { school: { select: { education_type: true } } } }
+            }
+        });
+
+        if (!orders.length) {
+            return res.status(404).json({ success: false, message: "No orders found for this class" });
+        }
+
+        const results = await Promise.allSettled(
+            orders.map(order =>
+                sendStatusEmail({
+                    email: order.student.email,
+                    studentName: order.student.name,
+                    orderId: order.id,
+                    status,
+                    trackingCode,
+                    educationType: order.class?.school?.education_type
+                })
+            )
+        );
+
+        const sent = results.filter(r => r.status === 'fulfilled').length;
+        res.json({ success: true, message: `Status emails sent to ${sent}/${orders.length} students` });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// Send follow-up email (care instructions + graduation caps) to all students in a class
+export const sendFollowUpToClass = async (req, res) => {
+    try {
+        const classId = parseInt(req.params.classId);
+
+        const students = await prisma.user.findMany({
+            where: { class_id: classId, role: 'student', status: { not: 2 } },
+            select: {
+                name: true,
+                email: true,
+                class: { select: { school: { select: { education_type: true } } } }
+            }
+        });
+
+        if (!students.length) {
+            return res.status(404).json({ success: false, message: "No students found for this class" });
+        }
+
+        const results = await Promise.allSettled(
+            students.map(student =>
+                sendFollowUpEmail({
+                    email: student.email,
+                    studentName: student.name,
+                    educationType: student.class?.school?.education_type
+                })
+            )
+        );
+
+        const sent = results.filter(r => r.status === 'fulfilled').length;
+        res.json({ success: true, message: `Follow-up emails sent to ${sent}/${students.length} students` });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }

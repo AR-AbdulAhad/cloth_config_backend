@@ -1,6 +1,7 @@
 import prisma from "../config/prisma.js";
 import bcrypt from "bcryptjs";  
-import jwt from "jsonwebtoken"; 
+import jwt from "jsonwebtoken";
+import { sendOrderConfirmationEmail } from "../utils/emailService.js";
 
 export const studentLogin = async (req, res) => {
     try {
@@ -442,6 +443,27 @@ export const getDashboardData = async (req, res) => {
         if (req.io) {
             req.io.emit(`order_update_${studentId}`, { action: versionAction, version: orderData.version });
             req.io.emit('new_order_admin', { studentId, action: versionAction });
+        }
+
+        // --- Send Order Confirmation Email (only on first create) ---
+        if (!existingOrder) {
+            try {
+                const student = await prisma.user.findUnique({
+                    where: { id: studentId },
+                    select: { name: true, email: true, class: { select: { change_deadline: true, school: { select: { education_type: true } } } } }
+                });
+                const savedItems = await prisma.orderItem.findMany({ where: { order_id: finalOrderId } });
+                await sendOrderConfirmationEmail({
+                    email: student.email,
+                    studentName: student.name,
+                    orderId: finalOrderId,
+                    garments: savedItems,
+                    changeDeadline: student.class?.change_deadline,
+                    educationType: student.class?.school?.education_type
+                });
+            } catch (emailErr) {
+                console.error("Order confirmation email failed:", emailErr.message);
+            }
         }
 
         return res.json({

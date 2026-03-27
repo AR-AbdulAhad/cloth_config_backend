@@ -43,7 +43,11 @@ io.on("connection", (socket) => {
 });
 
 // ✅ Enable CORS globally
-app.use(cors());
+app.use(cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"]
+}));
 
 // Need raw body for Stripe webhook signature verification
 app.use(express.json({
@@ -55,8 +59,12 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: true }));
 
-// Serve uploads
-app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+// Serve uploads with CORS headers so images load cross-origin
+app.use("/uploads", (req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET");
+    next();
+}, express.static(path.join(process.cwd(), "uploads")));
 
 // Intermediate Middleware to inject io 
 app.use((req, res, next) => {

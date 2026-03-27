@@ -49,7 +49,9 @@ export const listAllClasses = async (req, res) => {
             prisma.classes.count({ where })
         ]);
 
-        res.json({ success: true, data: classes, pagination: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) } });
+        const data = classes.map(c => ({ ...c, is_locked: c.order_locked }));
+
+        res.json({ success: true, data, pagination: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) } });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }

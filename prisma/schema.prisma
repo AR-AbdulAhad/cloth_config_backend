@@ -91,8 +91,9 @@ model Classes {
   created_at       DateTime    @default(now())
 
   school             School              @relation(fields: [school_id], references: [id], onDelete: Cascade)
+  active_back_design BackDesign?         @relation("ActiveBackDesign", fields: [back_design_id], references: [id], onDelete: SetNull)
   users              User[]
-  back_designs       BackDesign[]
+  back_designs       BackDesign[]        @relation("ClassBackDesigns")
   name_lists         NameList?
   orders             Order[]
   production_package ProductionPackage[]
@@ -153,7 +154,8 @@ model BackDesign {
   designColor        String?      @db.VarChar(20)
   created_at         DateTime     @default(now())
 
-  class Classes? @relation(fields: [class_id], references: [id], onDelete: Cascade)
+  class              Classes?     @relation("ClassBackDesigns", fields: [class_id], references: [id], onDelete: Cascade)
+  active_for_classes Classes[]    @relation("ActiveBackDesign")
 
   @@map("back_designs")
 }
