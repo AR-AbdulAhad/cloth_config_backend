@@ -42,12 +42,25 @@ io.on("connection", (socket) => {
     });
 });
 
+// ✅ Force CORS headers on every response (bypasses CDN/proxy stripping)
+app.use((req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    if (req.method === "OPTIONS") return res.sendStatus(200);
+    next();
+});
+
 // ✅ Enable CORS globally
 app.use(cors({
     origin: "*",
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"]
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true
 }));
+
+// ✅ Handle preflight requests for all routes
+app.options("*", cors());
 
 // Need raw body for Stripe webhook signature verification
 app.use(express.json({
