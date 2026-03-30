@@ -34,7 +34,7 @@ export const generateExcel = (orderData) => {
         });
 
         const fileName = `production_orders_${Date.now()}.xlsx`;
-        const uploadsDir = path.join(process.cwd(), 'uploads');
+        const uploadsDir = path.join(process.cwd(), 'uploads', 'production_files');
         const filePath = path.join(uploadsDir, fileName);
 
         // Ensure directory exists
@@ -44,7 +44,7 @@ export const generateExcel = (orderData) => {
 
         try {
             await workbook.xlsx.writeFile(filePath);
-            resolve(filePath);
+            resolve(`uploads/production_files/${fileName}`);
         } catch (err) {
             reject(err);
         }

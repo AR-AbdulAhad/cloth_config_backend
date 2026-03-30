@@ -2,7 +2,7 @@ import express from "express";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { addSchool, listSchools, editSchool, removeSchool } from "../controllers/schoolController.js";
 import { addClassRep, listClassReps, editClassRep, removeClassRep } from "../controllers/userController.js";
-import { addClass, editClass, removeClass, listAllClasses, toggleClassStatus, lockClass, unlockClass } from "../controllers/classController.js";
+import { addClass, editClass, removeClass, listAllClasses, toggleClassStatus, lockClass, unlockClass, updateClassProcessStatus } from "../controllers/classController.js";
 import { listSchoolLogos, approveLogo, rejectLogo } from "../controllers/logoController.js";
 import { listBackDesigns, approveBackDesign, rejectBackDesign, getClassBackDesigns } from "../controllers/designController.js";
 import { generateProductionFiles, listProductionPackages, sendClassStatusEmail, sendFollowUpToClass } from "../controllers/productionController.js";
@@ -50,6 +50,7 @@ router.put("/approve-back-design/:id", adminMiddleware, approveBackDesign);
 router.put("/reject-back-design/:id", adminMiddleware, rejectBackDesign);
 router.put("/lock-class/:classId", adminMiddleware, lockClass);
 router.put("/unlock-class/:classId", adminMiddleware, unlockClass);
+router.put("/class/:classId/process-status", adminMiddleware, updateClassProcessStatus);
 
 
 // NameList (Admin)

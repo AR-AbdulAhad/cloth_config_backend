@@ -496,13 +496,28 @@ export const getMyOrder = async (req, res) => {
                     where: { status: { not: 2 } }
                 },
                 logo: true,
-                class: true
+                class: {
+                    select: {
+                        name: true,
+                        process_status: true,
+                        change_deadline: true,
+                        order_locked: true
+                    }
+                }
             }
         });
 
         res.json({
             success: true,
-            data: order
+            data: order ? {
+                ...order,
+                tracking: {
+                    order_status: order.process_status,
+                    class_status: order.class?.process_status,
+                    is_locked: order.is_locked,
+                    change_deadline: order.class?.change_deadline
+                }
+            } : null
         });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });

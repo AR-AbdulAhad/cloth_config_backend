@@ -60,7 +60,7 @@ export const generateProductionFiles = async (req, res) => {
 
 export const listProductionPackages = async (req, res) => {
     try {
-        const { class_id, page = 1, limit = 10 } = req.body;
+        const { class_id, page = 1, limit = 10 } = req.body || {};
         const pageNum = Math.max(1, parseInt(page));
         const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
         const skip = (pageNum - 1) * limitNum;
@@ -81,7 +81,7 @@ export const listProductionPackages = async (req, res) => {
 export const sendClassStatusEmail = async (req, res) => {
     try {
         const classId = parseInt(req.params.classId);
-        const { status, trackingCode } = req.body;
+        const { status, trackingCode } = req.body || {};
 
         const validStatuses = ['production_ready', 'shipped', 'completed'];
         if (!validStatuses.includes(status)) {

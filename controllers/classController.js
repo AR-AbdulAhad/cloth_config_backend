@@ -1,5 +1,6 @@
 import prisma from "../config/prisma.js";
 import { handlePrismaError } from "../utils/errorHandler.js";
+import { sendStatusEmail } from "../utils/emailService.js";
 
 export const addClass = async (req, res) => {
     try {
@@ -95,6 +96,31 @@ export const lockClass = async (req, res) => {
             where: { id: parseInt(classId) },
             data: { process_status: 'orders_locked', order_locked: true, name_list_locked: true }
         });
+
+        // Send status email to all students in this class
+        try {
+            const orders = await prisma.order.findMany({
+                where: { class_id: parseInt(classId), status: { not: 2 } },
+                include: {
+                    student: { select: { name: true, email: true } },
+                    class: { select: { school: { select: { education_type: true } } } }
+                }
+            });
+            await Promise.allSettled(
+                orders.map(order =>
+                    sendStatusEmail({
+                        email: order.student.email,
+                        studentName: order.student.name,
+                        orderId: order.id,
+                        status: 'production_ready',
+                        educationType: order.class?.school?.education_type
+                    })
+                )
+            );
+        } catch (emailErr) {
+            console.error('Status email failed after lock:', emailErr.message);
+        }
+
         res.json({ success: true, message: "Class locked" });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
@@ -172,6 +198,57 @@ export const removeClass = async (req, res) => {
             data: { status: 2 }
         });
         res.json({ success: true, message: "Class deleted" });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// Admin updates class process_status → auto-sends status email to all students
+export const updateClassProcessStatus = async (req, res) => {
+    try {
+        const { classId } = req.params;
+        const { process_status, trackingCode } = req.body;
+
+        const validStatuses = ['active', 'orders_locked', 'production_ready', 'shipped', 'completed'];
+        if (!validStatuses.includes(process_status)) {
+            return res.status(400).json({ success: false, message: `Invalid status. Valid: ${validStatuses.join(', ')}` });
+        }
+
+        await prisma.classes.update({
+            where: { id: parseInt(classId) },
+            data: { process_status }
+        });
+
+        // Email trigger for statuses that students care about
+        const emailStatuses = ['production_ready', 'shipped', 'completed'];
+        if (emailStatuses.includes(process_status)) {
+            try {
+                const orders = await prisma.order.findMany({
+                    where: { class_id: parseInt(classId), status: { not: 2 } },
+                    include: {
+                        student: { select: { name: true, email: true } },
+                        class: { select: { school: { select: { education_type: true } } } }
+                    }
+                });
+
+                await Promise.allSettled(
+                    orders.map(order =>
+                        sendStatusEmail({
+                            email: order.student.email,
+                            studentName: order.student.name,
+                            orderId: order.id,
+                            status: process_status,
+                            trackingCode: trackingCode || null,
+                            educationType: order.class?.school?.education_type
+                        })
+                    )
+                );
+            } catch (emailErr) {
+                console.error('Status email failed:', emailErr.message);
+            }
+        }
+
+        res.json({ success: true, message: `Class status updated to ${process_status}` });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }
