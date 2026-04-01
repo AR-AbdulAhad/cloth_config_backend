@@ -234,6 +234,7 @@ export const getSidebarMenus = async (req, res) => {
                 { title: 'Schools', path: 'schools', icon: 'SchoolIcon' },
                 { title: 'Class Representatives', path: 'class-reps', icon: 'PeopleIcon' },
                 { title: 'System Classes', path: 'all-classes', icon: 'ClassIcon' },
+                { title: 'Countries logo', path: 'countries-logo', icon: 'ImageIcon' },
                 { title: 'Logos / Back Designs', path: 'review-uploads', icon: 'ImageIcon' },
                 { title: 'Name List', path: '/name-list', icon: 'FormatListBulletedIcon' },
                 { title: 'Orders List', path: '/orders-list', icon: 'ShoppingCartIcon' },

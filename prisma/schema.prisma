@@ -63,6 +63,19 @@ enum ClassStatus {
   completed
 }
 
+model Country {
+  id           Int          @id @default(autoincrement())
+  name         String       @unique @db.VarChar(100)
+  code         String?      @db.VarChar(10)
+  status       Int          @default(0)
+  created_at   DateTime     @default(now())
+
+  back_designs BackDesign[]
+  classes      Classes[]
+
+  @@map("countries")
+}
+
 model School {
   id             Int           @id @default(autoincrement())
   name           String        @db.VarChar(255)
@@ -72,26 +85,28 @@ model School {
 
   classes Classes[]
   users   User[]
-  logos   Logo[]
+  logos   Logo[]  
 
   @@map("schools")
 }
 
 model Classes {
-  id               Int         @id @default(autoincrement())
-  school_id        Int
-  name             String      @db.VarChar(255)
-  graduation_year  Int
-  change_deadline  DateTime?
-  order_locked     Boolean     @default(false)
-  name_list_locked Boolean     @default(false)
-  process_status   ClassStatus @default(active)
-  back_design_id   Int?
-  status           Int         @default(0)
-  created_at       DateTime    @default(now())
+  id                  Int         @id @default(autoincrement())
+  school_id           Int
+  name                String      @db.VarChar(255)
+  graduation_year     Int
+  change_deadline     DateTime?
+  order_locked        Boolean     @default(false)
+  name_list_locked    Boolean     @default(false)
+  process_status      ClassStatus @default(active)
+  back_design_id      Int?
+  country_id          Int?
+  status              Int         @default(0)
+  created_at          DateTime    @default(now())
 
   school             School              @relation(fields: [school_id], references: [id], onDelete: Cascade)
   active_back_design BackDesign?         @relation("ActiveBackDesign", fields: [back_design_id], references: [id], onDelete: SetNull)
+  country            Country?            @relation(fields: [country_id], references: [id], onDelete: SetNull)
   users              User[]
   back_designs       BackDesign[]        @relation("ClassBackDesigns")
   name_lists         NameList?
@@ -145,6 +160,7 @@ model Logo {
 model BackDesign {
   id                 Int          @id @default(autoincrement())
   class_id           Int?
+  country_id         Int?
   name               String       @db.VarChar(255)
   file_path          String       @db.VarChar(255)
   is_library         Boolean      @default(false)
@@ -155,6 +171,7 @@ model BackDesign {
   created_at         DateTime     @default(now())
 
   class              Classes?     @relation("ClassBackDesigns", fields: [class_id], references: [id], onDelete: Cascade)
+  country            Country?     @relation(fields: [country_id], references: [id], onDelete: SetNull)
   active_for_classes Classes[]    @relation("ActiveBackDesign")
 
   @@map("back_designs")

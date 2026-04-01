@@ -272,3 +272,123 @@ export const getClassBackDesigns = async (req, res) => {
         res.status(500).json({ success: false, error: err.message });
     }
 };
+
+// Get all available study trip countries from DB
+export const getStudyTripCountries = async (req, res) => {
+    try {
+        const countries = await prisma.country.findMany({
+            where: { status: 0 },
+            orderBy: { name: 'asc' },
+            select: { id: true, name: true, code: true }
+        });
+        res.json({ success: true, data: countries });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// Admin: upload a library design with country_id
+export const uploadLibraryDesign = async (req, res) => {
+    try {
+        const { name, country_id } = req.body;
+
+        if (!req.file) return res.status(400).json({ success: false, message: "No file uploaded" });
+        if (!country_id) return res.status(400).json({ success: false, message: "country_id is required" });
+
+        const country = await prisma.country.findUnique({ where: { id: parseInt(country_id) } });
+        if (!country) return res.status(404).json({ success: false, message: "Country not found" });
+
+        const design = await prisma.backDesign.create({
+            data: {
+                name: name || `library_${country.name}_${Date.now()}`,
+                file_path: req.file.path,
+                is_library: true,
+                country_id: parseInt(country_id),
+                process_status: 'approved',
+                status: 0
+            }
+        });
+
+        res.json({ success: true, message: "Library design uploaded", data: design });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// Get library designs filtered by country_id
+export const getLibraryDesignsByCountry = async (req, res) => {
+    try {
+        const { country_id } = req.query;
+
+        const where = {
+            is_library: true,
+            status: 0,
+            process_status: 'approved',
+            ...(country_id && { country_id: parseInt(country_id) })
+        };
+
+        const designs = await prisma.backDesign.findMany({
+            where,
+            include: { country: { select: { name: true, code: true } } },
+            orderBy: { created_at: 'desc' }
+        });
+
+        res.json({ success: true, data: designs });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// Class Rep: set study trip country on their class
+export const setClassStudyTripCountry = async (req, res) => {
+    try {
+        const classId = req.user.class_id;
+        const { country_id } = req.body;
+
+        if (!classId) return res.status(400).json({ success: false, message: "No class assigned" });
+        if (!country_id) return res.status(400).json({ success: false, message: "country_id is required" });
+
+        const country = await prisma.country.findUnique({ where: { id: parseInt(country_id) } });
+        if (!country) return res.status(404).json({ success: false, message: "Country not found" });
+
+        const updated = await prisma.classes.update({
+            where: { id: parseInt(classId) },
+            data: { country_id: parseInt(country_id) }
+        });
+
+        res.json({ success: true, message: `Study trip country set to ${country.name}`, data: updated });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// Class Rep: get library designs for their class's study trip country
+export const getLibraryDesignsForMyClass = async (req, res) => {
+    try {
+        const classId = req.user.class_id;
+        if (!classId) return res.status(400).json({ success: false, message: "No class assigned" });
+
+        const classData = await prisma.classes.findUnique({
+            where: { id: parseInt(classId) },
+            select: { country_id: true, country: { select: { name: true, code: true } } }
+        });
+
+        if (!classData?.country_id) {
+            return res.json({ success: true, data: [], message: "No study trip country set for this class" });
+        }
+
+        const designs = await prisma.backDesign.findMany({
+            where: {
+                is_library: true,
+                status: 0,
+                process_status: 'approved',
+                country_id: classData.country_id
+            },
+            orderBy: { created_at: 'desc' }
+        });
+
+        res.json({ success: true, country: classData.country, data: designs });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};

@@ -1,10 +1,13 @@
 import express from "express";
+import multer from "multer";
+import path from "path";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { addSchool, listSchools, editSchool, removeSchool } from "../controllers/schoolController.js";
 import { addClassRep, listClassReps, editClassRep, removeClassRep } from "../controllers/userController.js";
 import { addClass, editClass, removeClass, listAllClasses, toggleClassStatus, lockClass, unlockClass, updateClassProcessStatus } from "../controllers/classController.js";
 import { listSchoolLogos, approveLogo, rejectLogo } from "../controllers/logoController.js";
-import { listBackDesigns, approveBackDesign, rejectBackDesign, getClassBackDesigns } from "../controllers/designController.js";
+import { listBackDesigns, approveBackDesign, rejectBackDesign, getClassBackDesigns, uploadLibraryDesign, getLibraryDesignsByCountry, getStudyTripCountries } from "../controllers/designController.js";
+import { listCountries, addCountry, editCountry, removeCountry } from "../controllers/countryController.js";
 import { generateProductionFiles, listProductionPackages, sendClassStatusEmail, sendFollowUpToClass } from "../controllers/productionController.js";
 import { assignClassRep } from "../controllers/classController.js";
 import { getDashboardStats, toggleEntityStatus, sendDeadlineReminder, testEmail } from "../controllers/adminController.js";
@@ -12,8 +15,16 @@ import { getClassNameList, approveNameList, rejectNameList, getAllNameList, unlo
 import { getAllOrders, getOrderDetails, getOrderHistory, unlockOrder, lockOrder } from "../controllers/orderController.js";
 
 const router = express.Router();
-
 const adminMiddleware = authMiddleware("admin");
+
+const libraryStorage = multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, "uploads/class_back_designs/"),
+    filename: (_req, file, cb) => {
+        const ext = path.extname(file.originalname) || ".png";
+        cb(null, `library_${Date.now()}${ext}`);
+    }
+});
+const uploadLibrary = multer({ storage: libraryStorage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 router.get("/dashboard", adminMiddleware, getDashboardStats);
 
@@ -43,11 +54,20 @@ router.post("/logos", adminMiddleware, listSchoolLogos);
 router.put("/approve-logo/:logoId", adminMiddleware, approveLogo);
 router.put("/reject-logo/:logoId", adminMiddleware, rejectLogo);
 
+// Countries
+router.post("/countries", adminMiddleware, listCountries);
+router.post("/country/create", adminMiddleware, addCountry);
+router.put("/country/:id/update", adminMiddleware, editCountry);
+router.delete("/country/:id/delete", adminMiddleware, removeCountry);
+
 // Back designs
 router.post("/back-designs", adminMiddleware, listBackDesigns);
 router.get("/class/:classId/back-designs", adminMiddleware, getClassBackDesigns);
 router.put("/approve-back-design/:id", adminMiddleware, approveBackDesign);
 router.put("/reject-back-design/:id", adminMiddleware, rejectBackDesign);
+router.post("/library-design/upload", adminMiddleware, uploadLibrary.single("design"), uploadLibraryDesign);
+router.get("/library-designs", adminMiddleware, getLibraryDesignsByCountry);
+router.get("/study-trip-countries", adminMiddleware, getStudyTripCountries);
 router.put("/lock-class/:classId", adminMiddleware, lockClass);
 router.put("/unlock-class/:classId", adminMiddleware, unlockClass);
 router.put("/class/:classId/process-status", adminMiddleware, updateClassProcessStatus);
