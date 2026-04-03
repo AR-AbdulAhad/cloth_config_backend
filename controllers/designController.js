@@ -373,21 +373,24 @@ export const getLibraryDesignsForMyClass = async (req, res) => {
             select: { country_id: true, country: { select: { name: true, code: true } } }
         });
 
-        if (!classData?.country_id) {
-            return res.json({ success: true, data: [], message: "No study trip country set for this class" });
-        }
+        const where = {
+            is_library: true,
+            status: 0,
+            process_status: 'approved',
+            ...(classData?.country_id && { country_id: classData.country_id })
+        };
 
         const designs = await prisma.backDesign.findMany({
-            where: {
-                is_library: true,
-                status: 0,
-                process_status: 'approved',
-                country_id: classData.country_id
-            },
+            where,
+            include: { country: { select: { name: true, code: true } } },
             orderBy: { created_at: 'desc' }
         });
 
-        res.json({ success: true, country: classData.country, data: designs });
+        res.json({
+            success: true,
+            country: classData?.country || null,
+            data: designs
+        });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }

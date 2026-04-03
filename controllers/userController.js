@@ -6,13 +6,28 @@ import { sendClassRepWelcomeEmail } from "../utils/emailService.js";
 export const addClassRep = async (req, res) => {
     try {
         const { name, email, school_id } = req.body;
-        const generatedPassword = Math.random().toString(36).slice(-8);
         if (!name || !email || !school_id) return res.status(400).json({ success: false, message: "Missing fields" });
 
-        const existingUser = await prisma.user.findUnique({ where: { email } });
-        if (existingUser) return res.status(409).json({ success: false, message: "Email already exists" });
-
+        const generatedPassword = Math.random().toString(36).slice(-8);
         const hashedPassword = await bcrypt.hash(generatedPassword, 10);
+
+        // If email exists but was soft-deleted, restore it
+        const existingUser = await prisma.user.findUnique({ where: { email } });
+        if (existingUser) {
+            if (existingUser.status !== 2) {
+                return res.status(409).json({ success: false, message: "Email already in use by an active user" });
+            }
+            // Restore deleted user with new details
+            const restored = await prisma.user.update({
+                where: { email },
+                data: { name, password: hashedPassword, school_id: parseInt(school_id), role: 'class_representative', status: 0, class_id: null }
+            });
+            const encoded = Buffer.from(`${email}${generatedPassword}`).toString('base64');
+            const baseUrl = `https://elipsestudio.com/Cloth-Configurator-Dashboard/set-password?${encoded}`;
+            await sendClassRepWelcomeEmail(email, baseUrl);
+            return res.status(201).json({ success: true, message: "Class Representative restored and updated", data: { id: restored.id, name: restored.name, email: restored.email } });
+        }
+
         const rep = await prisma.user.create({
             data: { name, email, password: hashedPassword, role: "class_representative", school_id: parseInt(school_id), status: 0 }
         });
@@ -34,7 +49,7 @@ export const listClassReps = async (req, res) => {
         const limitNum = parseInt(limit);
         const skip = (pageNum - 1) * limitNum;
 
-        const where = { role: "class_representative", status: { not: 2 }, ...(search && { OR: [{ name: { contains: search } }] }) };
+        const where = { role: "class_representative", status: { not: 2 }, ...(search && { OR: [{ name: { contains: search } }, { email: { contains: search } }] }) };
         const [reps, total] = await Promise.all([
             prisma.user.findMany({ where, select: { id: true, name: true, email: true, school: { select: { name: true } }, status: true }, skip, take: limitNum, orderBy: { created_at: 'desc' } }),
             prisma.user.count({ where })
@@ -134,6 +149,42 @@ export const removeClassRep = async (req, res) => {
             data: { status: 2 }
         });
         res.json({ success: true, message: "Class Representative deleted" });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// Admin: reset any user's password and send new credentials via email
+export const adminResetPassword = async (req, res) => {
+    try {
+        const { userId } = req.params;
+
+        const user = await prisma.user.findUnique({ where: { id: parseInt(userId) } });
+        if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+        const newPassword = Math.random().toString(36).slice(-8);
+        const hashed = await bcrypt.hash(newPassword, 10);
+
+        await prisma.user.update({
+            where: { id: parseInt(userId) },
+            data: { password: hashed }
+        });
+
+        // Send new credentials via email
+        const { sendEmail } = await import('../utils/emailService.js');
+        await sendEmail(user.email, 'Your StudentLife Password Has Been Reset', `
+            <div style="font-family:Arial,sans-serif;padding:20px;">
+                <h2 style="color:#006d75;">Password Reset</h2>
+                <p>Hi <strong>${user.name}</strong>,</p>
+                <p>Your password has been reset by the admin.</p>
+                <p><strong>New Password:</strong> ${newPassword}</p>
+                <p>Please log in and change your password immediately.</p>
+                <hr/>
+                <p style="font-size:12px;color:gray;">StudentLife – studentlife.dk</p>
+            </div>
+        `);
+
+        res.json({ success: true, message: `Password reset and sent to ${user.email}` });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }

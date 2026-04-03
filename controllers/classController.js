@@ -182,6 +182,15 @@ export const assignClassRep = async (req, res) => {
         const rep = await prisma.user.findUnique({ where: { id: parseInt(class_rep_id) } });
         if (!rep || rep.role !== "class_representative" || rep.status === 2) return res.status(404).json({ success: false, message: "Rep not found" });
 
+        // Check if rep is already assigned to another class
+        if (rep.class_id && rep.class_id !== parseInt(class_id)) {
+            const assignedClass = await prisma.classes.findUnique({ where: { id: rep.class_id }, select: { name: true } });
+            return res.status(409).json({
+                success: false,
+                message: `This representative is already assigned to class "${assignedClass?.name || rep.class_id}". Unassign them first.`
+            });
+        }
+
         // If same rep already assigned, no change needed
         if (existingRep && existingRep.id === rep.id) return res.json({ success: true, message: "Rep already assigned to this class" });
 

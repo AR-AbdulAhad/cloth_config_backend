@@ -477,11 +477,11 @@ export const unlockNameList = async (req, res) => {
             return res.status(404).json({ success: false, message: "Name list not found" });
         }
 
-        // Only allow unlocking if currently approved or locked
-        if (existing.process_status !== "approved" && existing.process_status !== "locked") {
+        // Allow unlock from any status except deleted
+        if (existing.status === 2) {
             return res.status(400).json({
                 success: false,
-                message: "Can only unlock approved or locked name lists"
+                message: "Cannot unlock a deleted name list"
             });
         }
 

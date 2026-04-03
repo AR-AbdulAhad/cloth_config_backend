@@ -3,7 +3,7 @@ import multer from "multer";
 import path from "path";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { addSchool, listSchools, editSchool, removeSchool } from "../controllers/schoolController.js";
-import { addClassRep, listClassReps, editClassRep, removeClassRep } from "../controllers/userController.js";
+import { addClassRep, listClassReps, editClassRep, removeClassRep, adminResetPassword } from "../controllers/userController.js";
 import { addClass, editClass, removeClass, listAllClasses, toggleClassStatus, lockClass, unlockClass, updateClassProcessStatus } from "../controllers/classController.js";
 import { listSchoolLogos, approveLogo, rejectLogo } from "../controllers/logoController.js";
 import { listBackDesigns, approveBackDesign, rejectBackDesign, getClassBackDesigns, uploadLibraryDesign, getLibraryDesignsByCountry, getStudyTripCountries } from "../controllers/designController.js";
@@ -39,6 +39,7 @@ router.post("/class-rep/create", adminMiddleware, addClassRep);
 router.post("/class-reps", adminMiddleware, listClassReps);
 router.put("/class-rep/:id/update", adminMiddleware, editClassRep);
 router.delete("/class-rep/:id/delete", adminMiddleware, removeClassRep);
+router.post("/user/:userId/reset-password", adminMiddleware, adminResetPassword);
 router.patch("/:entityType/:id/toggle-status", adminMiddleware, toggleEntityStatus);
 
 // Class Routes

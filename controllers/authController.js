@@ -188,29 +188,32 @@ export const setUserPassword = async (req, res) => {
             return res.status(400).json({ message: 'Token and new password are required' });
         }
 
-        // Decode token (email + oldPassword)
-        const decoded = atob(token);
-        const email = decoded.slice(0, decoded.indexOf('@gmail.com') + 10); // extract email
-        const oldPassword = decoded.replace(email, ''); // remaining is password
+        // Decode token — format is base64(email + password)
+        const decoded = Buffer.from(token, 'base64').toString('utf-8');
 
-        // Find user by email
-        const user = await prisma.user.findUnique({ where: { email } });
-        if (!user) {
-            return res.status(404).json({ message: 'User not found' });
+        // Find user by trying all emails in DB that match start of decoded string
+        const users = await prisma.user.findMany({ select: { id: true, email: true, password: true } });
+        let matchedUser = null;
+        let oldPassword = null;
+
+        for (const u of users) {
+            if (decoded.startsWith(u.email)) {
+                oldPassword = decoded.slice(u.email.length);
+                const isMatch = await bcrypt.compare(oldPassword, u.password);
+                if (isMatch) {
+                    matchedUser = u;
+                    break;
+                }
+            }
         }
 
-        // Compare old password with hashed password
-        const isMatch = await bcrypt.compare(oldPassword, user.password);
-        if (!isMatch) {
+        if (!matchedUser) {
             return res.status(400).json({ message: 'Invalid or expired link' });
         }
 
-        // Hash new password
         const hashedNewPassword = await bcrypt.hash(newPassword, 10);
-
-        // Update password
         await prisma.user.update({
-            where: { id: user.id },
+            where: { id: matchedUser.id },
             data: { password: hashedNewPassword }
         });
 
@@ -232,10 +235,10 @@ export const getSidebarMenus = async (req, res) => {
             menus = [
                 dashboardMenu,
                 { title: 'Schools', path: 'schools', icon: 'SchoolIcon' },
-                { title: 'Class Representatives', path: 'class-reps', icon: 'PeopleIcon' },
                 { title: 'System Classes', path: 'all-classes', icon: 'ClassIcon' },
-                { title: 'Countries logo', path: 'countries-logo', icon: 'ImageIcon' },
+                { title: 'Class Representatives', path: 'class-reps', icon: 'PeopleIcon' },
                 { title: 'Logos / Back Designs', path: 'review-uploads', icon: 'ImageIcon' },
+                { title: 'Countries logo', path: 'countries-logo', icon: 'ImageIcon' },
                 { title: 'Name List', path: '/name-list', icon: 'FormatListBulletedIcon' },
                 { title: 'Orders List', path: '/orders-list', icon: 'ShoppingCartIcon' },
                 { title: 'Production Files', path: '/production-files', icon: 'PrintIcon' },
@@ -261,6 +264,31 @@ export const getSidebarMenus = async (req, res) => {
             success: true,
             menus
         });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// Change password (logged-in user)
+export const changePassword = async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+        const userId = req.user.id;
+
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ success: false, message: "Current and new password are required" });
+        }
+
+        const user = await prisma.user.findUnique({ where: { id: parseInt(userId) } });
+        if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+        const isMatch = await bcrypt.compare(currentPassword, user.password);
+        if (!isMatch) return res.status(400).json({ success: false, message: "Current password is incorrect" });
+
+        const hashed = await bcrypt.hash(newPassword, 10);
+        await prisma.user.update({ where: { id: parseInt(userId) }, data: { password: hashed } });
+
+        res.json({ success: true, message: "Password updated successfully" });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }
