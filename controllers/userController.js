@@ -90,7 +90,7 @@ export const generateRegistrationLink = async (req, res) => {
 
         const payload = JSON.stringify({ school_id, class_id });
         const encoded = Buffer.from(payload).toString('base64');
-        const baseUrl = process.env.LIVE_FRONTEND_URL || "http://localhost:5173";
+        const baseUrl = process.env.LIVE_FRONTEND_URL || "https://elipsestudio.com";
         const link = `${baseUrl}/Clothing-Configurator/register?${encoded}`;
 
         res.json({ success: true, data: { registrationLink: link, token: encoded } });
