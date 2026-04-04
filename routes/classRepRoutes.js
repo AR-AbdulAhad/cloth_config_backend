@@ -2,12 +2,13 @@ import express from "express";
 import path from "path";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { generateRegistrationLink } from "../controllers/userController.js";
-import { getStudentOverview, listStudents, getAssignedClass } from "../controllers/classRepController.js";
+import { listClasses, getStudentOverview, listStudents, getAssignedClass, listMyLogos, listMyBackDesigns } from "../controllers/classRepController.js";
 import { listMyClass, editClass } from "../controllers/classController.js";
-import { uploadSchoolLogo, listMyLogos } from "../controllers/logoController.js";
-import { uploadClassBackDesign, listMyBackDesigns, getConfiguratorBackDesign, reUploadClassBackDesign, setClassStudyTripCountry, getLibraryDesignsForMyClass, getStudyTripCountries } from "../controllers/designController.js";
+import { uploadSchoolLogo, deleteMyLogo } from "../controllers/logoController.js";
+import { uploadClassBackDesign, getConfiguratorBackDesign, reUploadClassBackDesign, setClassStudyTripCountry, getLibraryDesignsForMyClass, getStudyTripCountries, deleteMyBackDesign } from "../controllers/designController.js";
 import multer from "multer";
 import { getNameListForUser, addNameListItem, updateNameListItem, reorderNameListItems, markNameListReady, createNameList, deleteNameListItem } from "../controllers/nameListControllers.js";
+import { getActiveFonts, setNameListFont } from "../controllers/fontController.js";
 
 const logoStorage = multer.diskStorage({
     destination: (_req, _file, cb) => {
@@ -72,7 +73,9 @@ router.post("/upload-logo", middleware, uploadLogo.single("logo"), uploadSchoolL
 router.post("/upload-back-design", middleware, uploadBackDesign.single("backDesign"), uploadClassBackDesign);
 router.post("/upload-back-design/:id", middleware, uploadBackDesign.single("backDesign"), reUploadClassBackDesign);
 router.post("/my-logos", middleware, listMyLogos);
+router.delete("/logo/:logoId/delete", middleware, deleteMyLogo);
 router.post("/back-designs", middleware, listMyBackDesigns);
+router.delete("/back-design/:designId/delete", middleware, deleteMyBackDesign);
 router.get("/class/:classId/configurator-back-design", middleware, getConfiguratorBackDesign);
 router.get("/study-trip-countries", middleware, getStudyTripCountries);
 router.put("/set-study-trip-country", middleware, setClassStudyTripCountry);
@@ -88,6 +91,8 @@ router.put("/namelist/reorder/:name_list_id", middleware, reorderNameListItems);
 router.put("/namelist/:name_list_id/ready", middleware, markNameListReady);
 router.post("/namelist/create", middleware, createNameList);
 router.delete("/namelist/item/:item_id", middleware, deleteNameListItem);
+router.get("/fonts", middleware, getActiveFonts);
+router.put("/namelist/set-font", middleware, setNameListFont);
 
 
 export default router;

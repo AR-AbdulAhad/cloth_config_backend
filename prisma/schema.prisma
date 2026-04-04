@@ -76,6 +76,19 @@ model Country {
   @@map("countries")
 }
 
+model Font {
+  id              Int        @id @default(autoincrement())
+  name            String     @unique @db.VarChar(100)
+  google_font_url String?    @db.VarChar(500)
+  preview         String?    @db.VarChar(255)
+  status          Int        @default(0)
+  created_at      DateTime   @default(now())
+
+  name_lists NameList[]
+
+  @@map("fonts")
+}
+
 model School {
   id             Int           @id @default(autoincrement())
   name           String        @db.VarChar(255)
@@ -165,6 +178,7 @@ model BackDesign {
   file_path          String       @db.VarChar(255)
   is_library         Boolean      @default(false)
   process_status     DesignStatus @default(uploaded)
+  admin_comment      String?      @db.Text
   status             Int          @default(0)
   isFromConfigurator Boolean      @default(false)
   designColor        String?      @db.VarChar(20)
@@ -180,11 +194,13 @@ model BackDesign {
 model NameList {
   id             Int            @id @default(autoincrement())
   class_id       Int            @unique
+  font_id        Int?
   process_status NameListStatus @default(draft)
   created_at     DateTime       @default(now())
   locked_at      DateTime?
 
   class Classes        @relation(fields: [class_id], references: [id], onDelete: Cascade)
+  font  Font?          @relation(fields: [font_id], references: [id], onDelete: SetNull)
   items NameListItem[]
 
   @@map("name_lists")

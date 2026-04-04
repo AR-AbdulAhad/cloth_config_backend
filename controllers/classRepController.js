@@ -381,11 +381,11 @@ export const listMyLogos = async (req, res) => {
         const limitNum = Math.min(50, Math.max(1, parseInt(limit, 10) || 20));
         const skip = (pageNum - 1) * limitNum;
 
-        const where = { school_id: parseInt(schoolId) };
+        const where = { school_id: parseInt(schoolId), ...(req.body?.process_status && { process_status: req.body.process_status }) };
         const [items, total] = await Promise.all([
             prisma.logo.findMany({
                 where,
-                select: { id: true, name: true, file_path: true, status: true, process_status: true, created_at: true },
+                select: { id: true, name: true, file_path: true, status: true, process_status: true, admin_comment: true, created_at: true },
                 orderBy: { created_at: 'desc' },
                 skip,
                 take: limitNum
@@ -414,11 +414,11 @@ export const listMyBackDesigns = async (req, res) => {
         const limitNum = Math.min(50, Math.max(1, parseInt(limit, 10) || 20));
         const skip = (pageNum - 1) * limitNum;
 
-        const where = { class_id: parseInt(classId) };
+        const where = { class_id: parseInt(classId), ...(req.body?.process_status && { process_status: req.body.process_status }) };
         const [items, total] = await Promise.all([
             prisma.backDesign.findMany({
                 where,
-                select: { id: true, name: true, file_path: true, status: true, process_status: true, created_at: true },
+                select: { id: true, name: true, file_path: true, status: true, isFromConfigurator: true, process_status: true, admin_comment: true, created_at: true },
                 orderBy: { created_at: 'desc' },
                 skip,
                 take: limitNum

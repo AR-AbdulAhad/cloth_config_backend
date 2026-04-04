@@ -44,14 +44,25 @@ export const addClassRep = async (req, res) => {
 
 export const listClassReps = async (req, res) => {
     try {
-        const { page = 1, limit = 10, search = '' } = req.body;
+        const { page = 1, limit = 10, search = '', school_id, unassigned_only } = req.body;
         const pageNum = parseInt(page);
         const limitNum = parseInt(limit);
         const skip = (pageNum - 1) * limitNum;
 
-        const where = { role: "class_representative", status: { not: 2 }, ...(search && { OR: [{ name: { contains: search } }, { email: { contains: search } }] }) };
+        const where = {
+            role: "class_representative",
+            status: { not: 2 },
+            ...(school_id && { school_id: parseInt(school_id) }),
+            ...(unassigned_only && { class_id: null }),
+            ...(search && { OR: [{ name: { contains: search } }, { email: { contains: search } }] })
+        };
+
         const [reps, total] = await Promise.all([
-            prisma.user.findMany({ where, select: { id: true, name: true, email: true, school: { select: { name: true } }, status: true }, skip, take: limitNum, orderBy: { created_at: 'desc' } }),
+            prisma.user.findMany({
+                where,
+                select: { id: true, name: true, email: true, class_id: true, school: { select: { name: true } }, status: true },
+                skip, take: limitNum, orderBy: { created_at: 'desc' }
+            }),
             prisma.user.count({ where })
         ]);
 

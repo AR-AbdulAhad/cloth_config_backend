@@ -237,9 +237,11 @@ export const getSidebarMenus = async (req, res) => {
                 { title: 'Schools', path: 'schools', icon: 'SchoolIcon' },
                 { title: 'System Classes', path: 'all-classes', icon: 'ClassIcon' },
                 { title: 'Class Representatives', path: 'class-reps', icon: 'PeopleIcon' },
+                { title: 'School Overview', path: 'school-overview', icon: 'PeopleIcon' },
                 { title: 'Logos / Back Designs', path: 'review-uploads', icon: 'ImageIcon' },
                 { title: 'Countries logo', path: 'countries-logo', icon: 'ImageIcon' },
-                { title: 'Name List', path: '/name-list', icon: 'FormatListBulletedIcon' },
+                { title: 'Add Fonts', path: 'fonts', icon: 'ImageIcon' },
+                // { title: 'Name List', path: '/name-list', icon: 'FormatListBulletedIcon' },
                 { title: 'Orders List', path: '/orders-list', icon: 'ShoppingCartIcon' },
                 { title: 'Production Files', path: '/production-files', icon: 'PrintIcon' },
             ];
@@ -248,7 +250,7 @@ export const getSidebarMenus = async (req, res) => {
                 { title: 'My Classes', path: '/my-class', icon: 'GroupIcon' },
                 { title: 'Logo Upload', path: '/upload-files', icon: 'CloudUploadIcon' },
                 { title: 'Back Design Configurator', path: '/back-design-configurator', icon: 'BrushIcon' },
-                { title: 'Name List', path: '/namelist', icon: 'FormatListBulletedIcon' },
+                // { title: 'Name List', path: '/namelist', icon: 'FormatListBulletedIcon' },
                 { title: 'Student Overview', path: '/student-overview', icon: 'PeopleAltIcon' },
             ];
         } else if (role === 'student') {

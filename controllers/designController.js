@@ -134,7 +134,10 @@ export const listBackDesigns = async (req, res) => {
         };
 
         const [results, total] = await Promise.all([
-            prisma.backDesign.findMany({ where, skip, take: limitNum, orderBy: { created_at: 'desc' } }),
+            prisma.backDesign.findMany({
+                where, skip, take: limitNum, orderBy: { created_at: 'desc' },
+                include: { class: { select: { id: true, name: true } } }
+            }),
             prisma.backDesign.count({ where })
         ]);
 
@@ -234,9 +237,10 @@ export const approveBackDesign = async (req, res) => {
 export const rejectBackDesign = async (req, res) => {
     try {
         const { id } = req.params;
+        const { comment, reason } = req.body;
         await prisma.backDesign.update({
             where: { id: parseInt(id) },
-            data: { process_status: 'rejected', status: 2 }
+            data: { process_status: 'rejected', status: 2, admin_comment: comment || reason || null }
         });
         res.json({ success: true, message: "Back design rejected" });
     } catch (err) {
@@ -391,6 +395,23 @@ export const getLibraryDesignsForMyClass = async (req, res) => {
             country: classData?.country || null,
             data: designs
         });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// Class Rep: delete their own back design (soft delete)
+export const deleteMyBackDesign = async (req, res) => {
+    try {
+        const { designId } = req.params;
+        const classId = req.user.class_id;
+
+        const design = await prisma.backDesign.findUnique({ where: { id: parseInt(designId) } });
+        if (!design) return res.status(404).json({ success: false, message: "Design not found" });
+        if (design.class_id !== classId) return res.status(403).json({ success: false, message: "Unauthorized" });
+
+        await prisma.backDesign.update({ where: { id: parseInt(designId) }, data: { status: 2 } });
+        res.json({ success: true, message: "Back design deleted" });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }

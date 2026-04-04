@@ -118,3 +118,73 @@ export const testEmail = async (req, res) => {
         res.status(500).json({ success: false, error: err.message });
     }
 };
+
+// Admin: get all students in a class with full details
+export const getClassStudents = async (req, res) => {
+    try {
+        const { classId } = req.params;
+        const { page = 1, limit = 10, search = '' } = req.body || {};
+        const pageNum = Math.max(1, parseInt(page));
+        const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
+        const skip = (pageNum - 1) * limitNum;
+
+        const where = {
+            class_id: parseInt(classId),
+            role: 'student',
+            status: { not: 2 },
+            ...(search && { OR: [{ name: { contains: search } }, { email: { contains: search } }] })
+        };
+
+        const [students, total] = await Promise.all([
+            prisma.user.findMany({
+                where,
+                select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    phone_number: true,
+                    year_of_birth: true,
+                    consent_marketing: true,
+                    consent_production: true,
+                    status: true,
+                    created_at: true,
+                    orders: {
+                        where: { status: { not: 2 } },
+                        select: { id: true, process_status: true, total_amount: true, payment_status: true },
+                        take: 1,
+                        orderBy: { created_at: 'desc' }
+                    }
+                },
+                skip,
+                take: limitNum,
+                orderBy: { name: 'asc' }
+            }),
+            prisma.user.count({ where })
+        ]);
+
+        const data = students.map(s => ({
+            ...s,
+            order_status: s.orders[0]?.process_status || 'no_order',
+            orders: undefined
+        }));
+
+        res.json({ success: true, data, pagination: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) } });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// Get class rep details by class ID
+export const getClassRep = async (req, res) => {
+    try {
+        const { classId } = req.params;
+        const rep = await prisma.user.findFirst({
+            where: { class_id: parseInt(classId), role: 'class_representative', status: { not: 2 } },
+            select: { id: true, name: true, email: true, phone_number: true, school_id: true, created_at: true }
+        });
+        if (!rep) return res.status(404).json({ success: false, message: "No class rep assigned to this class" });
+        res.json({ success: true, data: rep });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
