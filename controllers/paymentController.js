@@ -143,20 +143,19 @@ export const createCheckoutSession = async (req, res) => {
             });
         }
 
-        // --- Calculate Total Amount ---
-        // Basic prices for products (re-calculated server-side for security)
-        const PRICES = {
-            'T-SHIRT': 200,
-            'SWEATSHIRT': 350,
-            'HOODIE': 450,
-            'ZIPPERHOODIE': 500,
-            'SWEATPANTS': 300,
-            'SHORTS': 250
-        };
+        // --- Fetch garment prices from settings ---
+        const priceSettings = await prisma.setting.findMany({
+            where: { key: { startsWith: 'price_' } }
+        });
+        const PRICES = Object.fromEntries(
+            priceSettings.map(s => [s.key.replace('price_', ''), parseFloat(s.value)])
+        );
+        const DEFAULT_PRICES = { 'T-SHIRT': 200, 'SWEATSHIRT': 350, 'HOODIE': 450, 'ZIPPERHOODIE': 500, 'SWEATPANTS': 300, 'SHORTS': 250 };
+        const getPriceForType = (type) => PRICES[type] ?? DEFAULT_PRICES[type] ?? 0;
 
         let currentTotal = 0;
         orderData.garments.forEach(item => {
-            currentTotal += PRICES[item.product_type] || 0;
+            currentTotal += getPriceForType(item.product_type);
         });
 
         // --- Check Existing Order & Apply Versioning ---

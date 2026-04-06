@@ -1,7 +1,8 @@
 import prisma from "../config/prisma.js";
-import bcrypt from "bcryptjs";  
+import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { sendOrderConfirmationEmail } from "../utils/emailService.js";
+import { calculateHandlingFeePerStudent } from "../utils/feeCalculator.js";
 
 export const studentLogin = async (req, res) => {
     try {
@@ -177,7 +178,7 @@ export const getDashboardData = async (req, res) => {
     }
 };
 
-    export const placeOrder = async (req, res) => {
+export const placeOrder = async (req, res) => {
     try {
         let {
             student_id,
@@ -269,9 +270,9 @@ export const getDashboardData = async (req, res) => {
                         where: { id: existingOrder.id },
                         data: { is_locked: true }
                     });
-                    return res.status(403).json({ 
-                        success: false, 
-                        message: "The 3-day post-payment edit window has expired. Order is now locked." 
+                    return res.status(403).json({
+                        success: false,
+                        message: "The 3-day post-payment edit window has expired. Order is now locked."
                     });
                 }
 
@@ -287,9 +288,9 @@ export const getDashboardData = async (req, res) => {
                 });
 
                 if (isDesignChanged) {
-                    return res.status(403).json({ 
-                        success: false, 
-                        message: "Design is locked after payment. You can only update delivery details or add new items." 
+                    return res.status(403).json({
+                        success: false,
+                        message: "Design is locked after payment. You can only update delivery details or add new items."
                     });
                 }
             }
@@ -310,36 +311,41 @@ export const getDashboardData = async (req, res) => {
                         where: { id: existingOrder.id },
                         data: { is_locked: true }
                     });
-                    return res.status(403).json({ 
-                        success: false, 
-                        message: "The 3-business-day change period for unpaid orders has expired. Order is now locked." 
+                    return res.status(403).json({
+                        success: false,
+                        message: "The 3-business-day change period for unpaid orders has expired. Order is now locked."
                     });
                 }
             }
-            
+
             // Also check class deadline
             if (targetClass.change_deadline && now > new Date(targetClass.change_deadline)) {
-                 return res.status(403).json({ success: false, message: "Class order deadline has passed." });
+                return res.status(403).json({ success: false, message: "Class order deadline has passed." });
             }
         }
 
-        // --- Calculate Total Amount ---
-        const PRICES = {
-            'T-SHIRT': 200,
-            'SWEATSHIRT': 350,
-            'HOODIE': 450,
-            'ZIPPERHOODIE': 500,
-            'SWEATPANTS': 300,
-            'SHORTS': 250
-        };
+        // --- Fetch garment prices from settings ---
+        const priceSettings = await prisma.setting.findMany({
+            where: { key: { startsWith: 'price_' } }
+        });
+        const PRICES = Object.fromEntries(
+            priceSettings.map(s => [s.key.replace('price_', ''), parseFloat(s.value)])
+        );
+        // Fallback defaults if settings not seeded yet
+        const DEFAULT_PRICES = { 'T-SHIRT': 200, 'SWEATSHIRT': 350, 'HOODIE': 450, 'ZIPPERHOODIE': 500, 'SWEATPANTS': 300, 'SHORTS': 250 };
+        const getPriceForType = (type) => PRICES[type] ?? DEFAULT_PRICES[type] ?? 0;
 
         let currentTotal = 0;
         if (garments && garments.length > 0) {
             garments.forEach(item => {
                 const type = item.product_type || item.type;
-                currentTotal += PRICES[type] || 0;
+                currentTotal += getPriceForType(type);
             });
         }
+
+        // Add handling fee per student
+        const handlingFee = await calculateHandlingFeePerStudent(classId);
+        currentTotal = Math.round((currentTotal + handlingFee) * 100) / 100;
 
         const orderData = {
             student_id: studentId,
@@ -534,11 +540,11 @@ export const getMyOrderHistory = async (req, res) => {
                 status: { not: 2 }
             },
             include: {
-              order: {
-                include: {
-                  order_items: true
+                order: {
+                    include: {
+                        order_items: true
+                    }
                 }
-              }
             },
             orderBy: { created_at: 'desc' }
         });
@@ -582,6 +588,51 @@ export const deleteHistory = async (req, res) => {
             success: true,
             message: "History entry deleted."
         });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// Get student profile
+export const getMyProfile = async (req, res) => {
+    try {
+        const student = await prisma.user.findUnique({
+            where: { id: req.user.id },
+            select: {
+                id: true, name: true, email: true,
+                phone_number: true, year_of_birth: true,
+                consent_marketing: true, consent_production: true,
+                created_at: true,
+                class: { select: { id: true, name: true } },
+                school: { select: { id: true, name: true } }
+            }
+        });
+        res.json({ success: true, data: student });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// Update student profile
+export const updateMyProfile = async (req, res) => {
+    try {
+        const { name, phone_number, year_of_birth, consent_marketing, consent_production } = req.body;
+        const data = {};
+        if (name) data.name = name;
+        if (phone_number !== undefined) data.phone_number = phone_number;
+        if (year_of_birth !== undefined) data.year_of_birth = parseInt(year_of_birth);
+        if (consent_marketing !== undefined) data.consent_marketing = Boolean(consent_marketing);
+        if (consent_production !== undefined) data.consent_production = Boolean(consent_production);
+
+        const updated = await prisma.user.update({
+            where: { id: req.user.id },
+            data,
+            select: {
+                id: true, name: true, email: true, phone_number: true, year_of_birth: true, consent_marketing: true, consent_production: true, class: { select: { id: true, name: true } },
+                school: { select: { id: true, name: true } }
+            }
+        });
+        res.json({ success: true, message: "Profile updated", data: updated });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }

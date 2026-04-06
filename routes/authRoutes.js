@@ -1,5 +1,5 @@
 import express from "express";
-import { login, register, decodeRegistrationToken, setUserPassword, getSidebarMenus, changePassword } from "../controllers/authController.js";
+import { login, register, decodeRegistrationToken, setUserPassword, getSidebarMenus, changePassword, forgotPassword, resetPassword } from "../controllers/authController.js";
 
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { studentLogin } from "../controllers/studentController.js";
@@ -17,5 +17,7 @@ router.post("/set-password", setUserPassword);
 // GET /api/auth/me/menus - Get dynamic sidebar menus based on role
 router.get("/sidebar-menus", authMiddleware(), getSidebarMenus);
 router.put("/change-password", authMiddleware(), changePassword);
+router.post("/forgot-password", forgotPassword);
+router.post("/reset-password", resetPassword);
 
 export default router;

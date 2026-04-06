@@ -227,45 +227,63 @@ export const setUserPassword = async (req, res) => {
 export const getSidebarMenus = async (req, res) => {
     try {
         const { role } = req.user;
-        let menus = [];
 
-        const dashboardMenu = { title: 'Dashboard', path: '/', icon: 'DashboardIcon' };
+        const menuModules = {
+            admin: [
+                {
+                    module: 'Main',
+                    children: [
+                        { title: 'Dashboard', path: '/', icon: 'DashboardIcon' },
+                    ]
+                },
+                {
+                    module: 'Management',
+                    children: [
+                        { title: 'Schools', path: '/schools', icon: 'SchoolIcon' },
+                        { title: 'System Classes', path: '/all-classes', icon: 'ClassIcon' },
+                        { title: 'Class Representatives', path: '/class-reps', icon: 'PeopleIcon' },
+                        { title: 'School Overview', path: '/school-overview', icon: 'PeopleIcon' },
+                    ]
+                },
+                {
+                    module: 'Assets',
+                    children: [
+                        { title: 'Logos / Back Designs', path: '/review-uploads', icon: 'ImageIcon' },
+                        { title: 'Countries Logo', path: '/countries-logo', icon: 'ImageIcon' },
+                        { title: 'Add Fonts', path: '/fonts', icon: 'FontDownloadIcon' },
+                    ]
+                },
+                {
+                    module: 'Orders',
+                    children: [
+                        { title: 'Orders List', path: '/orders-list', icon: 'ShoppingCartIcon' },
+                        { title: 'Production Files', path: '/production-files', icon: 'PrintIcon' },
+                    ]
+                },
+                {
+                    module: 'System',
+                    children: [
+                        { title: 'Settings', path: '/settings', icon: 'SettingsIcon' },
+                    ]
+                }
+            ],
+            class_representative: [
+                {
+                    module: 'Main',
+                    children: [
+                        { title: 'My Classes', path: '/my-class', icon: 'GroupIcon' },
+                        { title: 'Logo Upload', path: '/upload-files', icon: 'CloudUploadIcon' },
+                        { title: 'Back Design Configurator', path: '/back-design-configurator', icon: 'BrushIcon' },
+                        { title: 'Student Overview', path: '/student-overview', icon: 'PeopleAltIcon' },
+                    ]
+                }
+            ]
+        };
 
-        if (role === 'admin' || role === 'server_owner') {
-            menus = [
-                dashboardMenu,
-                { title: 'Schools', path: 'schools', icon: 'SchoolIcon' },
-                { title: 'System Classes', path: 'all-classes', icon: 'ClassIcon' },
-                { title: 'Class Representatives', path: 'class-reps', icon: 'PeopleIcon' },
-                { title: 'School Overview', path: 'school-overview', icon: 'PeopleIcon' },
-                { title: 'Logos / Back Designs', path: 'review-uploads', icon: 'ImageIcon' },
-                { title: 'Countries logo', path: 'countries-logo', icon: 'ImageIcon' },
-                { title: 'Add Fonts', path: 'fonts', icon: 'ImageIcon' },
-                // { title: 'Name List', path: '/name-list', icon: 'FormatListBulletedIcon' },
-                { title: 'Orders List', path: '/orders-list', icon: 'ShoppingCartIcon' },
-                { title: 'Production Files', path: '/production-files', icon: 'PrintIcon' },
-            ];
-        } else if (role === 'class_representative') {
-            menus = [
-                { title: 'My Classes', path: '/my-class', icon: 'GroupIcon' },
-                { title: 'Logo Upload', path: '/upload-files', icon: 'CloudUploadIcon' },
-                { title: 'Back Design Configurator', path: '/back-design-configurator', icon: 'BrushIcon' },
-                // { title: 'Name List', path: '/namelist', icon: 'FormatListBulletedIcon' },
-                { title: 'Student Overview', path: '/student-overview', icon: 'PeopleAltIcon' },
-            ];
-        } else if (role === 'student') {
-            menus = [
-                { title: 'Cloth Configurator', path: '/configurator', icon: 'AppRegistrationIcon' },
-                { title: 'Select Logo', path: '/select-logo', icon: 'WallpaperIcon' },
-                { title: 'My Order', path: '/my-order', icon: 'ShoppingCartIcon' },
-                { title: 'Profile', path: '/profile', icon: 'AccountCircleIcon' },
-            ];
-        }
+        menuModules.server_owner = menuModules.admin;
 
-        res.json({
-            success: true,
-            menus
-        });
+        const menus = menuModules[role] || [];
+        res.json({ success: true, menus });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }
@@ -291,6 +309,75 @@ export const changePassword = async (req, res) => {
         await prisma.user.update({ where: { id: parseInt(userId) }, data: { password: hashed } });
 
         res.json({ success: true, message: "Password updated successfully" });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// Forgot password — send OTP to email
+export const forgotPassword = async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) return res.status(400).json({ success: false, message: "Email is required" });
+
+        const user = await prisma.user.findUnique({ where: { email } });
+        if (!user) return res.status(404).json({ success: false, message: "No account found with this email" });
+
+        // Generate 6-digit OTP
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const expires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+        await prisma.user.update({
+            where: { id: user.id },
+            data: { reset_otp: otp, reset_otp_expires: expires }
+        });
+
+        const { sendEmail } = await import('../utils/emailService.js');
+        await sendEmail(email, 'StudentLife – Password Reset Code', `
+            <div style="font-family:Arial,sans-serif;padding:20px;max-width:500px;">
+                <h2 style="color:#006d75;">Password Reset</h2>
+                <p>Hi <strong>${user.name}</strong>,</p>
+                <p>Your password reset code is:</p>
+                <h1 style="background:#f0f9fa;padding:15px;border-radius:8px;text-align:center;letter-spacing:8px;color:#006d75;">${otp}</h1>
+                <p>This code expires in <strong>15 minutes</strong>.</p>
+                <p>If you did not request this, ignore this email.</p>
+                <hr/>
+                <p style="font-size:12px;color:gray;">StudentLife – studentlife.dk</p>
+            </div>
+        `);
+
+        res.json({ success: true, message: "Reset code sent to your email" });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// Reset password — verify OTP and set new password
+export const resetPassword = async (req, res) => {
+    try {
+        const { email, otp, newPassword } = req.body;
+        if (!email || !otp || !newPassword) {
+            return res.status(400).json({ success: false, message: "email, otp, and newPassword are required" });
+        }
+
+        const user = await prisma.user.findUnique({ where: { email } });
+        if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+        if (!user.reset_otp || user.reset_otp !== otp) {
+            return res.status(400).json({ success: false, message: "Invalid OTP" });
+        }
+
+        if (!user.reset_otp_expires || new Date() > new Date(user.reset_otp_expires)) {
+            return res.status(400).json({ success: false, message: "OTP has expired" });
+        }
+
+        const hashed = await bcrypt.hash(newPassword, 10);
+        await prisma.user.update({
+            where: { id: user.id },
+            data: { password: hashed, reset_otp: null, reset_otp_expires: null }
+        });
+
+        res.json({ success: true, message: "Password reset successfully" });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }

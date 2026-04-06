@@ -5,12 +5,22 @@ const fontSelect = { id: true, name: true, google_font_url: true, preview: true 
 // Admin: list all fonts
 export const listFonts = async (req, res) => {
     try {
-        const fonts = await prisma.font.findMany({
-            where: { status: 0 },
-            orderBy: { created_at: 'desc' },
-            select: fontSelect
-        });
-        res.json({ success: true, data: fonts });
+        const { page = 1, limit = 10, search = '' } = req.body || {};
+        const pageNum = Math.max(1, parseInt(page));
+        const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
+        const skip = (pageNum - 1) * limitNum;
+
+        const where = {
+            status: 0,
+            ...(search && { name: { contains: search } })
+        };
+
+        const [fonts, total] = await Promise.all([
+            prisma.font.findMany({ where, orderBy: { created_at: 'desc' }, select: fontSelect, skip, take: limitNum }),
+            prisma.font.count({ where })
+        ]);
+
+        res.json({ success: true, data: fonts, pagination: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) } });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }

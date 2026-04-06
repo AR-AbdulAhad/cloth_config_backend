@@ -92,6 +92,25 @@ async function main() {
         fontsCreated++;
     }
     console.log(`Fonts seeded: ${fontsCreated}`);
+    // Seed default settings
+    const defaultSettings = [
+        { key: 'handling_fee', value: '500', description: 'Base handling fee for the class (DKK)' },
+        { key: 'handling_fee_enabled', value: 'true', description: 'Enable or disable handling fee' },
+        { key: 'handling_fee_threshold', value: '20', description: 'Max items covered by base handling fee' },
+        { key: 'handling_fee_extra', value: '250', description: 'Extra handling fee when items exceed threshold (DKK)' },
+        { key: 'vat_percentage', value: '25', description: 'VAT percentage applied to orders' },
+        { key: 'order_edit_days', value: '3', description: 'Number of business days students can edit order' },
+        { key: 'price_T-SHIRT', value: '200', description: 'Price for T-Shirt (DKK)' },
+        { key: 'price_SWEATSHIRT', value: '350', description: 'Price for Sweatshirt (DKK)' },
+        { key: 'price_HOODIE', value: '450', description: 'Price for Hoodie (DKK)' },
+        { key: 'price_ZIPPERHOODIE', value: '500', description: 'Price for Zipper Hoodie (DKK)' },
+        { key: 'price_SWEATPANTS', value: '300', description: 'Price for Sweatpants (DKK)' },
+        { key: 'price_SHORTS', value: '250', description: 'Price for Shorts (DKK)' },
+    ];
+    for (const s of defaultSettings) {
+        await prisma.setting.upsert({ where: { key: s.key }, update: {}, create: s });
+    }
+    console.log('Settings seeded');
     process.exit(0);
 }
 

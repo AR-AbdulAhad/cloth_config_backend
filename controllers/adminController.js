@@ -4,21 +4,128 @@ import { sendChangeDeadlineEmail } from "../utils/emailService.js";
 
 export const getDashboardStats = async (req, res) => {
     try {
-        const schoolCount = await prisma.school.count();
-        const classCount = await prisma.classes.count();
-        const userCount = await prisma.user.count();
-        const logoCount = await prisma.logo.count();
-        const backDesignCount = await prisma.backDesign.count();
-        const ordersCount = await prisma.order.count();
+        const now = new Date();
+        const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+
+        const [
+            schoolCount, classCount, userCount,
+            logoCount, backDesignCount, ordersCount,
+            pendingLogos, pendingDesigns,
+            totalRevenue, recentOrders, recentStudents,
+            orderStatusCounts, topSchools
+        ] = await Promise.all([
+            prisma.school.count({ where: { status: { not: 2 } } }),
+            prisma.classes.count({ where: { status: { not: 2 } } }),
+            prisma.user.count({ where: { role: 'student', status: { not: 2 } } }),
+            prisma.logo.count({ where: { status: { not: 2 } } }),
+            prisma.backDesign.count({ where: { status: { not: 2 } } }),
+            prisma.order.count({ where: { status: { not: 2 } } }),
+            prisma.logo.count({ where: { process_status: 'uploaded', status: { not: 2 } } }),
+            prisma.backDesign.count({ where: { process_status: 'uploaded', status: { not: 2 } } }),
+            prisma.order.aggregate({ where: { status: { not: 2 } }, _sum: { amount_paid: true } }),
+            // Recent 5 orders
+            prisma.order.findMany({
+                where: { status: { not: 2 } },
+                orderBy: { created_at: 'desc' },
+                take: 5,
+                include: {
+                    student: { select: { name: true } },
+                    class: { select: { name: true } }
+                }
+            }),
+            // Recent 5 student registrations
+            prisma.user.findMany({
+                where: { role: 'student', status: { not: 2 } },
+                orderBy: { created_at: 'desc' },
+                take: 5,
+                select: { id: true, name: true, email: true, created_at: true, class: { select: { name: true } } }
+            }),
+            // Order status distribution
+            prisma.order.groupBy({
+                by: ['process_status'],
+                where: { status: { not: 2 } },
+                _count: { id: true }
+            }),
+            // Top 5 schools by student count
+            prisma.school.findMany({
+                where: { status: { not: 2 } },
+                take: 5,
+                select: {
+                    id: true, name: true,
+                    _count: { select: { users: true } }
+                },
+                orderBy: { users: { _count: 'desc' } }
+            })
+        ]);
+
+        // Orders per month (last 6 months)
+        const ordersPerMonth = await prisma.order.groupBy({
+            by: ['created_at'],
+            where: { created_at: { gte: sixMonthsAgo }, status: { not: 2 } },
+            _count: { id: true },
+            _sum: { amount_paid: true }
+        });
+
+        // Group by month
+        const monthlyMap = {};
+        for (let i = 5; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            monthlyMap[key] = { orders: 0, revenue: 0 };
+        }
+        ordersPerMonth.forEach(o => {
+            const d = new Date(o.created_at);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            if (monthlyMap[key]) {
+                monthlyMap[key].orders += o._count.id;
+                monthlyMap[key].revenue += parseFloat(o._sum.amount_paid || 0);
+            }
+        });
+
+        const monthlyData = Object.entries(monthlyMap).map(([month, data]) => ({ month, ...data }));
+
         res.json({
             success: true,
             data: {
-                schoolCount,
-                classCount,
-                userCount,
-                logoCount,
-                backDesignCount,
-                ordersCount
+                // Stats cards
+                stats: {
+                    schools: schoolCount,
+                    classes: classCount,
+                    students: userCount,
+                    orders: ordersCount,
+                    total_revenue: parseFloat(totalRevenue._sum.amount_paid || 0),
+                    pending_approvals: pendingLogos + pendingDesigns
+                },
+                // Pie chart
+                order_status_distribution: orderStatusCounts.map(o => ({
+                    status: o.process_status,
+                    count: o._count.id
+                })),
+                // Bar + Line chart
+                monthly_data: monthlyData,
+                // Bar chart
+                top_schools: topSchools.map(s => ({
+                    name: s.name,
+                    student_count: s._count.users
+                })),
+                // Recent activity
+                recent_orders: recentOrders.map(o => ({
+                    id: o.id,
+                    student: o.student.name,
+                    class: o.class.name,
+                    amount: parseFloat(o.total_amount || 0),
+                    status: o.process_status,
+                    time: o.created_at
+                })),
+                recent_students: recentStudents.map(s => ({
+                    id: s.id,
+                    name: s.name,
+                    email: s.email,
+                    class: s.class?.name || '-',
+                    time: s.created_at
+                })),
+                // Server time in EU (Copenhagen)
+                server_time: new Date().toLocaleString('da-DK', { timeZone: 'Europe/Copenhagen' })
             }
         });
     } catch (err) {

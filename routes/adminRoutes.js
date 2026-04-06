@@ -13,6 +13,7 @@ import { listFonts, getActiveFonts, setNameListFont, addFont, removeFont } from 
 import { generateProductionFiles, listProductionPackages, sendClassStatusEmail, sendFollowUpToClass } from "../controllers/productionController.js";
 import { assignClassRep } from "../controllers/classController.js";
 import { getDashboardStats, toggleEntityStatus, sendDeadlineReminder, testEmail, getClassStudents, getClassRep } from "../controllers/adminController.js";
+import { getSettings, updateSetting, updateSettings } from "../controllers/settingController.js";
 import { getClassNameList, approveNameList, rejectNameList, getAllNameList, unlockNameList } from "../controllers/nameListControllers.js";
 import { getAllOrders, getOrderDetails, getOrderHistory, unlockOrder, lockOrder } from "../controllers/orderController.js";
 
@@ -119,5 +120,10 @@ router.post("/class/:classId/send-deadline-reminder", adminMiddleware, sendDeadl
 router.post("/class/:classId/send-status-email", adminMiddleware, sendClassStatusEmail);
 router.post("/class/:classId/send-followup-email", adminMiddleware, sendFollowUpToClass);
 router.post("/test-email", adminMiddleware, testEmail);
+
+// Settings
+router.get("/settings", adminMiddleware, getSettings);
+router.put("/setting", adminMiddleware, updateSetting);
+router.put("/settings", adminMiddleware, updateSettings);
 
 export default router;

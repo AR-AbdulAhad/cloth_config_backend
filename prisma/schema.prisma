@@ -141,6 +141,8 @@ model User {
   year_of_birth      Int?
   consent_marketing  Boolean  @default(false)
   consent_production Boolean  @default(false)
+  reset_otp          String?  @db.VarChar(10)
+  reset_otp_expires  DateTime?
   status             Int      @default(0)
   created_at         DateTime @default(now())
 
@@ -291,4 +293,14 @@ model ProductionPackage {
   class Classes @relation(fields: [class_id], references: [id], onDelete: Cascade)
 
   @@map("production_packages")
+}
+
+model Setting {
+  id             Int      @id @default(autoincrement())
+  key            String   @unique @db.VarChar(100)
+  value          String   @db.VarChar(500)
+  description    String?  @db.VarChar(255)
+  updated_at     DateTime @default(now()) @updatedAt
+
+  @@map("settings")
 }
