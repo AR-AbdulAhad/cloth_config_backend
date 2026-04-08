@@ -123,7 +123,7 @@ export const decodeRegistrationToken = async (req, res) => {
 // Student Self-Registration
 export const register = async (req, res) => {
     try {
-        const { name, email, password, school_id, class_id, year_of_birth } = req.body;
+        const { name, email, password, school_id, class_id, year_of_birth, consent_marketing = false } = req.body;
 
         // Validation
         if (!name || !email || !password || !school_id || !class_id) {
@@ -155,6 +155,7 @@ export const register = async (req, res) => {
                 class_id: parseInt(class_id),
                 year_of_birth: year_of_birth || null,
                 role: "student",
+                consent_marketing,
                 status: 0 // Active by default
             }
         });
@@ -263,7 +264,6 @@ export const getSidebarMenus = async (req, res) => {
                 {
                     module: 'Marketing',
                     children: [
-                        { title: 'Email Templates', path: '/email-template', icon: 'EmailIcon' },
                         { title: 'Email Campaigns', path: '/campaigns', icon: 'EmailIcon' },
                     ]
                 },

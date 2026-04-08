@@ -4,22 +4,42 @@ import { sendEmail } from "../utils/emailService.js";
 // Create or save campaign as draft
 export const createCampaign = async (req, res) => {
     try {
-        const { title, subject, html_body, body, target_type, target_id, target_role } = req.body;
-        const emailBody = html_body || body;
+        const { title, name, subject, html_body, body, target_type = 'all', target_id, target_role, template_id } = req.body;
+        const campaignTitle = title || name;
 
-        if (!title || !subject || !emailBody || !target_type) {
-            return res.status(400).json({ success: false, message: "Missing required fields" });
+        let emailBody = html_body || body;
+        let emailSubject = subject;
+
+        // If template_id provided AND no custom body, load from template
+        if (template_id && !emailBody) {
+            const template = await prisma.emailTemplate.findUnique({ where: { id: parseInt(template_id) } });
+            if (!template) return res.status(404).json({ success: false, message: "Template not found" });
+            emailBody = template.html_body;
+            emailSubject = emailSubject || template.subject;
+        }
+
+        if (!campaignTitle || !emailSubject || !emailBody) {
+            return res.status(400).json({ success: false, message: "Missing required fields: name, subject, body" });
         }
 
         const campaign = await prisma.campaign.create({
-            data: { title, subject, html_body: emailBody, target_type, target_id, target_role, status: "draft" }
+            data: {
+                title: campaignTitle,
+                subject: emailSubject,
+                html_body: emailBody,
+                target_type,
+                target_id: target_id ? parseInt(target_id) : null,
+                target_role: target_role || null,
+                template_id: template_id ? parseInt(template_id) : null,
+                status: "draft"
+            }
         });
 
         res.json({ success: true, message: "Campaign created", data: campaign });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }
-};
+}
 
 // List all campaigns
 export const listCampaigns = async (req, res) => {
@@ -71,7 +91,7 @@ export const deleteCampaign = async (req, res) => {
 export const sendCampaign = async (req, res) => {
     try {
         const campaignId = parseInt(req.params.id);
-        const { force = false } = req.body; // force=true bypasses consent_marketing filter
+        const { force = false } = req.body || {};
         const campaign = await prisma.campaign.findUnique({ where: { id: campaignId } });
 
         if (!campaign) return res.status(404).json({ success: false, message: "Campaign not found" });
@@ -80,7 +100,9 @@ export const sendCampaign = async (req, res) => {
         // consent filter — bypass if force=true
         const consentFilter = force ? {} : { consent_marketing: true };
 
-        // Get target users based on target_type
+        // Debug
+        console.log('Campaign target:', { type: campaign.target_type, id: campaign.target_id, role: campaign.target_role, force });
+
         let users = [];
 
         switch (campaign.target_type) {
@@ -114,6 +136,7 @@ export const sendCampaign = async (req, res) => {
         }
 
         if (users.length === 0) {
+            console.log('No users found. consentFilter:', consentFilter);
             return res.status(400).json({ success: false, message: "No users found matching target criteria" });
         }
 
