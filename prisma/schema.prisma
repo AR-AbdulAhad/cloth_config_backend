@@ -1,4 +1,4 @@
-generator client {
+  generator client {
   provider = "prisma-client-js"
 }
 
@@ -303,4 +303,36 @@ model Setting {
   updated_at     DateTime @default(now()) @updatedAt
 
   @@map("settings")
+}
+
+model Campaign {
+  id            Int      @id @default(autoincrement())
+  title         String   @db.VarChar(255)
+  subject       String   @db.VarChar(255)
+  html_body     String   @db.Text
+  target_type   String   @db.VarChar(50)  // "all", "class", "school", "role", "individual"
+  target_id     Int?                       // class_id, school_id, or user_id (null for "all" or "role")
+  target_role   String?  @db.VarChar(50)  // "student", "class_representative" (for role targeting)
+  sent_count    Int      @default(0)
+  failed_count  Int      @default(0)
+  status        String   @default("draft") @db.VarChar(50)  // "draft", "sent", "scheduled"
+  scheduled_at  DateTime?
+  sent_at       DateTime?
+  created_at    DateTime @default(now())
+
+  @@map("campaigns")
+}
+
+model EmailTemplate {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique @db.VarChar(255)
+  subject     String   @db.VarChar(255)
+  html_body   String   @db.Text
+  category    String   @db.VarChar(100)
+  is_default  Boolean  @default(false)
+  status      Int      @default(0)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @default(now()) @updatedAt
+
+  @@map("email_templates")
 }

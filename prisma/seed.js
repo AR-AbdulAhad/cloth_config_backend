@@ -111,6 +111,115 @@ async function main() {
         await prisma.setting.upsert({ where: { key: s.key }, update: {}, create: s });
     }
     console.log('Settings seeded');
+
+    // Seed email templates
+    const EMAIL_TEMPLATES = [
+        {
+            name: 'Graduation Cap Promotion',
+            subject: 'Your graduation cap awaits 🎓',
+            category: 'marketing',
+            is_default: true,
+            html_body: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;background:#fff;">
+  <div style="background:#00b96b;padding:24px;border-radius:8px 8px 0 0;text-align:center;">
+    <h1 style="color:#fff;margin:0;font-size:24px;">🎓 Graduation Caps</h1>
+  </div>
+  <div style="padding:24px;border:1px solid #f0f0f0;border-top:none;border-radius:0 0 8px 8px;">
+    <p style="font-size:16px;">Hi {{name}},</p>
+    <p>You recently ordered your class clothing — now it's time to complete the look with a <strong>custom graduation cap</strong>.</p>
+    <p>We offer fully personalized graduation caps to match your class style. Don't miss out!</p>
+    <div style="text-align:center;margin:32px 0;">
+      <a href="https://studentlife.dk/caps" style="background:#00b96b;color:#fff;padding:14px 32px;border-radius:6px;text-decoration:none;font-size:16px;font-weight:bold;">Explore Graduation Caps</a>
+    </div>
+    <p style="color:#999;font-size:12px;">You're receiving this because you ordered class clothing with us.</p>
+  </div>
+</div>`
+        },
+        {
+            name: 'Order Reminder',
+            subject: 'Don\'t forget to complete your order ⏰',
+            category: 'reminder',
+            is_default: false,
+            html_body: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;background:#fff;">
+  <div style="background:#e67e22;padding:24px;border-radius:8px 8px 0 0;text-align:center;">
+    <h1 style="color:#fff;margin:0;font-size:24px;">⏰ Reminder</h1>
+  </div>
+  <div style="padding:24px;border:1px solid #f0f0f0;border-top:none;border-radius:0 0 8px 8px;">
+    <p style="font-size:16px;">Hi {{name}},</p>
+    <p>Your class order deadline is approaching. Make sure your design, logo, and delivery details are finalized.</p>
+    <div style="text-align:center;margin:32px 0;">
+      <a href="https://studentlife.dk" style="background:#e67e22;color:#fff;padding:14px 32px;border-radius:6px;text-decoration:none;font-size:16px;font-weight:bold;">Complete My Order</a>
+    </div>
+    <p style="color:#999;font-size:12px;">StudentLife – studentlife.dk</p>
+  </div>
+</div>`
+        },
+        {
+            name: 'Welcome to StudentLife',
+            subject: 'Welcome to StudentLife 🎉',
+            category: 'transactional',
+            is_default: false,
+            html_body: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;background:#fff;">
+  <div style="background:#006d75;padding:24px;border-radius:8px 8px 0 0;text-align:center;">
+    <h1 style="color:#fff;margin:0;font-size:24px;">Welcome 🎉</h1>
+  </div>
+  <div style="padding:24px;border:1px solid #f0f0f0;border-top:none;border-radius:0 0 8px 8px;">
+    <p style="font-size:16px;">Hi {{name}},</p>
+    <p>Welcome to <strong>StudentLife</strong>! We're excited to help you create the perfect class clothing and graduation experience.</p>
+    <p>Start by exploring your dashboard and customizing your class design.</p>
+    <div style="text-align:center;margin:32px 0;">
+      <a href="https://studentlife.dk" style="background:#006d75;color:#fff;padding:14px 32px;border-radius:6px;text-decoration:none;font-size:16px;font-weight:bold;">Get Started</a>
+    </div>
+    <p style="color:#999;font-size:12px;">StudentLife – studentlife.dk</p>
+  </div>
+</div>`
+        },
+        {
+            name: 'Special Offer',
+            subject: 'Exclusive offer just for your class 🎁',
+            category: 'marketing',
+            is_default: false,
+            html_body: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;background:#fff;">
+  <div style="background:#722ed1;padding:24px;border-radius:8px 8px 0 0;text-align:center;">
+    <h1 style="color:#fff;margin:0;font-size:24px;">🎁 Special Offer</h1>
+  </div>
+  <div style="padding:24px;border:1px solid #f0f0f0;border-top:none;border-radius:0 0 8px 8px;">
+    <p style="font-size:16px;">Hi {{name}},</p>
+    <p>We have an exclusive offer just for your class. Complete your graduation look with our premium products at a special price.</p>
+    <div style="text-align:center;margin:32px 0;">
+      <a href="https://studentlife.dk" style="background:#722ed1;color:#fff;padding:14px 32px;border-radius:6px;text-decoration:none;font-size:16px;font-weight:bold;">Claim Offer</a>
+    </div>
+    <p style="color:#999;font-size:12px;">StudentLife – studentlife.dk</p>
+  </div>
+</div>`
+        },
+        {
+            name: 'Order Shipped',
+            subject: 'Your order is on its way 🚚',
+            category: 'transactional',
+            is_default: false,
+            html_body: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;background:#fff;">
+  <div style="background:#27ae60;padding:24px;border-radius:8px 8px 0 0;text-align:center;">
+    <h1 style="color:#fff;margin:0;font-size:24px;">🚚 Order Shipped</h1>
+  </div>
+  <div style="padding:24px;border:1px solid #f0f0f0;border-top:none;border-radius:0 0 8px 8px;">
+    <p style="font-size:16px;">Hi {{name}},</p>
+    <p>Great news! Your order has been shipped and is on its way to you.</p>
+    <p>You will receive it within the estimated delivery window. Stay tuned!</p>
+    <p style="color:#999;font-size:12px;">StudentLife – studentlife.dk</p>
+  </div>
+</div>`
+        }
+    ];
+
+    for (const t of EMAIL_TEMPLATES) {
+        await prisma.emailTemplate.upsert({
+            where: { name: t.name },
+            update: { subject: t.subject, html_body: t.html_body, category: t.category },
+            create: t
+        });
+    }
+    console.log(`Email templates seeded: ${EMAIL_TEMPLATES.length}`);
+
     process.exit(0);
 }
 

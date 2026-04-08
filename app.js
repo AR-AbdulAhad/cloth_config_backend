@@ -6,6 +6,8 @@ import classRepRoutes from "./routes/classRepRoutes.js";
 import studentRoutes from "./routes/studentRoute.js";
 import authRoutes from "./routes/authRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
+import campaignRoutes from "./routes/campaignRoutes.js";
+import templateRoutes from "./routes/templateRoutes.js";
 import cors from "cors";
 import path from "path";
 
@@ -78,6 +80,8 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/class-rep", classRepRoutes);
 app.use("/api/student", studentRoutes);
 app.use("/api/payment", paymentRoutes);
+app.use("/api/campaign", campaignRoutes);
+app.use("/api/template", templateRoutes);
 
 app.get("/", (req, res) => {
     res.send("StudentLife Backend API v1.5 with Realtime Sockets is running");

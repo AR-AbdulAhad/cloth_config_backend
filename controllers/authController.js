@@ -261,6 +261,13 @@ export const getSidebarMenus = async (req, res) => {
                     ]
                 },
                 {
+                    module: 'Marketing',
+                    children: [
+                        { title: 'Email Templates', path: '/email-template', icon: 'EmailIcon' },
+                        { title: 'Email Campaigns', path: '/campaigns', icon: 'EmailIcon' },
+                    ]
+                },
+                {
                     module: 'System',
                     children: [
                         { title: 'Settings', path: '/settings', icon: 'SettingsIcon' },
