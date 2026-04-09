@@ -83,7 +83,7 @@ export const uploadClassBackDesign = async (req, res) => {
 export const reUploadClassBackDesign = async (req, res) => {
     try {
         const classId = req.user.class_id;
-        const { name, isFromConfigurator, designColor } = req.body;
+        const { name, isFromConfigurator, designColor, configurator_state } = req.body;
         const designId = req.params.id;
 
         if (!classId) return res.status(400).json({ success: false, message: "User not assigned to any class" });
@@ -91,12 +91,18 @@ export const reUploadClassBackDesign = async (req, res) => {
 
         const isConfigurator = isFromConfigurator === 'true' || isFromConfigurator === true;
 
-        // Validate designColor if provided
         if (designColor && !['white', 'black'].includes(designColor.toLowerCase())) {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid design color. Only 'white' or 'black' are allowed."
-            });
+            return res.status(400).json({ success: false, message: "Invalid design color. Only 'white' or 'black' are allowed." });
+        }
+
+        // Parse configurator_state if sent as string
+        let parsedState = null;
+        if (configurator_state) {
+            try {
+                parsedState = typeof configurator_state === 'string' ? JSON.parse(configurator_state) : configurator_state;
+            } catch (e) {
+                parsedState = null;
+            }
         }
 
         const design = await prisma.backDesign.update({
@@ -109,7 +115,8 @@ export const reUploadClassBackDesign = async (req, res) => {
                 process_status: 'uploaded',
                 status: 1,
                 isFromConfigurator: isConfigurator,
-                designColor: designColor ? designColor.toLowerCase() : null
+                designColor: designColor ? designColor.toLowerCase() : null,
+                ...(parsedState && { configurator_state: parsedState })
             }
         });
 
@@ -118,7 +125,7 @@ export const reUploadClassBackDesign = async (req, res) => {
         console.error(err);
         res.status(500).json({ success: false, error: err.message });
     }
-};
+};;
 
 export const listBackDesigns = async (req, res) => {
     try {
@@ -412,6 +419,101 @@ export const deleteMyBackDesign = async (req, res) => {
 
         await prisma.backDesign.update({ where: { id: parseInt(designId) }, data: { status: 2 } });
         res.json({ success: true, message: "Back design deleted" });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// Class Rep: edit back design details (name, designColor) without re-uploading file
+export const editMyBackDesign = async (req, res) => {
+    try {
+        const { designId } = req.params;
+        const classId = req.user.class_id;
+        const { name, designColor } = req.body;
+
+        if (!classId) return res.status(400).json({ success: false, message: "No class assigned" });
+
+        const design = await prisma.backDesign.findUnique({ where: { id: parseInt(designId) } });
+        if (!design) return res.status(404).json({ success: false, message: "Design not found" });
+        if (design.class_id !== classId) return res.status(403).json({ success: false, message: "Unauthorized" });
+
+        if (designColor && !['white', 'black'].includes(designColor.toLowerCase())) {
+            return res.status(400).json({ success: false, message: "designColor must be 'white' or 'black'" });
+        }
+
+        const updated = await prisma.backDesign.update({
+            where: { id: parseInt(designId) },
+            data: {
+                ...(name && { name }),
+                ...(designColor && { designColor: designColor.toLowerCase() }),
+                process_status: 'uploaded', // reset to pending review
+                status: 1
+            }
+        });
+
+        res.json({ success: true, message: "Design updated", data: updated });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// Class Rep: save configurator state (draft — before final submit)
+export const saveConfiguratorState = async (req, res) => {
+    try {
+        const classId = req.user.class_id;
+        const { configurator_state, designColor, name } = req.body;
+
+        if (!classId) return res.status(400).json({ success: false, message: "No class assigned" });
+        if (!configurator_state) return res.status(400).json({ success: false, message: "configurator_state is required" });
+
+        // Find existing draft or configurator design for this class
+        let design = await prisma.backDesign.findFirst({
+            where: { class_id: parseInt(classId), isFromConfigurator: true, status: { not: 2 } }
+        });
+
+        if (design) {
+            design = await prisma.backDesign.update({
+                where: { id: design.id },
+                data: {
+                    configurator_state,
+                    ...(designColor && { designColor }),
+                    ...(name && { name })
+                }
+            });
+        } else {
+            design = await prisma.backDesign.create({
+                data: {
+                    class_id: parseInt(classId),
+                    name: name || `configurator_draft_${Date.now()}`,
+                    file_path: '',
+                    is_library: false,
+                    isFromConfigurator: true,
+                    configurator_state,
+                    designColor: designColor || null,
+                    process_status: 'uploaded',
+                    status: 1
+                }
+            });
+        }
+
+        res.json({ success: true, message: "Configurator state saved", data: design });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// Class Rep: load saved configurator state
+export const loadConfiguratorState = async (req, res) => {
+    try {
+        const classId = req.user.class_id;
+        if (!classId) return res.status(400).json({ success: false, message: "No class assigned" });
+
+        const design = await prisma.backDesign.findFirst({
+            where: { class_id: parseInt(classId), isFromConfigurator: true, status: { not: 2 } },
+            orderBy: { created_at: 'desc' }
+        });
+
+        res.json({ success: true, data: design || null });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }

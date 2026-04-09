@@ -173,18 +173,19 @@ model Logo {
 }
 
 model BackDesign {
-  id                 Int          @id @default(autoincrement())
-  class_id           Int?
-  country_id         Int?
-  name               String       @db.VarChar(255)
-  file_path          String       @db.VarChar(255)
-  is_library         Boolean      @default(false)
-  process_status     DesignStatus @default(uploaded)
-  admin_comment      String?      @db.Text
-  status             Int          @default(0)
-  isFromConfigurator Boolean      @default(false)
-  designColor        String?      @db.VarChar(20)
-  created_at         DateTime     @default(now())
+  id                  Int          @id @default(autoincrement())
+  class_id            Int?
+  country_id          Int?
+  name                String       @db.VarChar(255)
+  file_path           String       @db.VarChar(255)
+  is_library          Boolean      @default(false)
+  process_status      DesignStatus @default(uploaded)
+  admin_comment       String?      @db.Text
+  status              Int          @default(0)
+  isFromConfigurator  Boolean      @default(false)
+  designColor         String?      @db.VarChar(20)
+  configurator_state  Json?
+  created_at          DateTime     @default(now())
 
   class              Classes?     @relation("ClassBackDesigns", fields: [class_id], references: [id], onDelete: Cascade)
   country            Country?     @relation(fields: [country_id], references: [id], onDelete: SetNull)
