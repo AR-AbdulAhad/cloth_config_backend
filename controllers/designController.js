@@ -518,3 +518,235 @@ export const loadConfiguratorState = async (req, res) => {
         res.status(500).json({ success: false, error: err.message });
     }
 };
+// Admin: delete any back design (soft delete)
+export const adminDeleteBackDesign = async (req, res) => {
+    try {
+        const { designId } = req.params;
+
+        const design = await prisma.backDesign.findUnique({ 
+            where: { id: parseInt(designId) },
+            include: { 
+                class: { select: { name: true } },
+                country: { select: { name: true } }
+            }
+        });
+        
+        if (!design) {
+            return res.status(404).json({ success: false, message: "Back design not found" });
+        }
+
+        if (design.status === 2) {
+            return res.status(400).json({ success: false, message: "Back design is already deleted" });
+        }
+
+        // Check if design is being used as active back design for any class
+        const activeClasses = await prisma.classes.count({
+            where: { 
+                back_design_id: parseInt(designId),
+                status: { not: 2 }
+            }
+        });
+
+        if (activeClasses > 0) {
+            return res.status(400).json({ 
+                success: false, 
+                message: `Cannot delete back design. It is currently set as active design for ${activeClasses} class(es)` 
+            });
+        }
+
+        await prisma.backDesign.update({ 
+            where: { id: parseInt(designId) }, 
+            data: { status: 2 } 
+        });
+
+        const location = design.class ? `class "${design.class.name}"` : 
+                        design.country ? `country "${design.country.name}"` : 'library';
+
+        res.json({ 
+            success: true, 
+            message: `Back design "${design.name}" from ${location} has been deleted` 
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// Admin: permanently delete back design (hard delete with file removal)
+export const adminPermanentDeleteBackDesign = async (req, res) => {
+    try {
+        const { designId } = req.params;
+        const { confirm } = req.body;
+
+        if (confirm !== 'DELETE') {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Please confirm deletion by sending 'confirm: DELETE' in request body" 
+            });
+        }
+
+        const design = await prisma.backDesign.findUnique({ 
+            where: { id: parseInt(designId) },
+            include: { 
+                class: { select: { name: true } },
+                country: { select: { name: true } }
+            }
+        });
+        
+        if (!design) {
+            return res.status(404).json({ success: false, message: "Back design not found" });
+        }
+
+        // Check if design is being used by any classes (including deleted ones)
+        const anyClasses = await prisma.classes.count({
+            where: { back_design_id: parseInt(designId) }
+        });
+
+        if (anyClasses > 0) {
+            return res.status(400).json({ 
+                success: false, 
+                message: `Cannot permanently delete back design. It is referenced by ${anyClasses} class(es). Use soft delete instead.` 
+            });
+        }
+
+        // Delete file from filesystem
+        try {
+            const fs = await import('fs');
+            if (fs.existsSync(design.file_path)) {
+                fs.unlinkSync(design.file_path);
+            }
+        } catch (fileError) {
+            console.warn(`Warning: Could not delete file ${design.file_path}:`, fileError.message);
+        }
+
+        // Delete from database
+        await prisma.backDesign.delete({ where: { id: parseInt(designId) } });
+
+        const location = design.class ? `class "${design.class.name}"` : 
+                        design.country ? `country "${design.country.name}"` : 'library';
+
+        res.json({ 
+            success: true, 
+            message: `Back design "${design.name}" from ${location} has been permanently deleted` 
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+// Admin: delete library design (soft delete)
+export const adminDeleteLibraryDesign = async (req, res) => {
+    try {
+        const { designId } = req.params;
+
+        const design = await prisma.backDesign.findUnique({ 
+            where: { id: parseInt(designId) },
+            include: { 
+                country: { select: { name: true } }
+            }
+        });
+        
+        if (!design) {
+            return res.status(404).json({ success: false, message: "Library design not found" });
+        }
+
+        if (!design.is_library) {
+            return res.status(400).json({ success: false, message: "This is not a library design" });
+        }
+
+        if (design.status === 2) {
+            return res.status(400).json({ success: false, message: "Library design is already deleted" });
+        }
+
+        // Check if design is being used as active back design for any class
+        const activeClasses = await prisma.classes.count({
+            where: { 
+                back_design_id: parseInt(designId),
+                status: { not: 2 }
+            }
+        });
+
+        if (activeClasses > 0) {
+            return res.status(400).json({ 
+                success: false, 
+                message: `Cannot delete library design. It is currently set as active design for ${activeClasses} class(es)` 
+            });
+        }
+
+        await prisma.backDesign.update({ 
+            where: { id: parseInt(designId) }, 
+            data: { status: 2 } 
+        });
+
+        const location = design.country ? `country "${design.country.name}"` : 'library';
+
+        res.json({ 
+            success: true, 
+            message: `Library design "${design.name}" from ${location} has been deleted` 
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// Admin: permanently delete library design (hard delete with file removal)
+export const adminPermanentDeleteLibraryDesign = async (req, res) => {
+    try {
+        const { designId } = req.params;
+        const { confirm } = req.body;
+
+        if (confirm !== 'DELETE') {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Please confirm deletion by sending 'confirm: DELETE' in request body" 
+            });
+        }
+
+        const design = await prisma.backDesign.findUnique({ 
+            where: { id: parseInt(designId) },
+            include: { 
+                country: { select: { name: true } }
+            }
+        });
+        
+        if (!design) {
+            return res.status(404).json({ success: false, message: "Library design not found" });
+        }
+
+        if (!design.is_library) {
+            return res.status(400).json({ success: false, message: "This is not a library design" });
+        }
+
+        // Check if design is being used by any classes (including deleted ones)
+        const anyClasses = await prisma.classes.count({
+            where: { back_design_id: parseInt(designId) }
+        });
+
+        if (anyClasses > 0) {
+            return res.status(400).json({ 
+                success: false, 
+                message: `Cannot permanently delete library design. It is referenced by ${anyClasses} class(es). Use soft delete instead.` 
+            });
+        }
+
+        // Delete file from filesystem
+        try {
+            const fs = await import('fs');
+            if (fs.existsSync(design.file_path)) {
+                fs.unlinkSync(design.file_path);
+            }
+        } catch (fileError) {
+            console.warn(`Warning: Could not delete file ${design.file_path}:`, fileError.message);
+        }
+
+        // Delete from database
+        await prisma.backDesign.delete({ where: { id: parseInt(designId) } });
+
+        const location = design.country ? `country "${design.country.name}"` : 'library';
+
+        res.json({ 
+            success: true, 
+            message: `Library design "${design.name}" from ${location} has been permanently deleted` 
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};

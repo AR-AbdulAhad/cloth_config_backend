@@ -42,3 +42,45 @@ export const calculateHandlingFeePerStudent = async (classId) => {
 
     return Math.round(perStudent * 100) / 100;
 };
+
+/**
+ * Calculate VAT amount based on subtotal and VAT percentage from settings
+ */
+export const calculateVAT = async (subtotal) => {
+    const vatSetting = await prisma.setting.findUnique({
+        where: { key: 'vat_percentage' }
+    });
+
+    const vatPercentage = parseFloat(vatSetting?.value || 25); // Default 25% if not found
+    const vatAmount = (subtotal * vatPercentage) / 100;
+
+    return {
+        vatPercentage,
+        vatAmount: Math.round(vatAmount * 100) / 100,
+        totalWithVAT: Math.round((subtotal + vatAmount) * 100) / 100
+    };
+};
+
+/**
+ * Calculate complete order pricing including VAT
+ */
+export const calculateOrderTotal = async (subtotal, classId = null) => {
+    const vatCalculation = await calculateVAT(subtotal);
+    
+    let handlingFee = 0;
+    if (classId) {
+        handlingFee = await calculateHandlingFeePerStudent(classId);
+    }
+
+    const subtotalWithHandling = subtotal + handlingFee;
+    const vatOnTotal = await calculateVAT(subtotalWithHandling);
+
+    return {
+        subtotal,
+        handlingFee,
+        subtotalWithHandling,
+        vatPercentage: vatOnTotal.vatPercentage,
+        vatAmount: vatOnTotal.vatAmount,
+        total: vatOnTotal.totalWithVAT
+    };
+};

@@ -11,16 +11,38 @@ const transporter = nodemailer.createTransport({
     tls: { rejectUnauthorized: false }
 });
 
-export const sendEmail = async (to, subject, html) => {
+export const sendEmail = async (to, subject, html, fromAddress = null) => {
     try {
-        const info = await transporter.sendMail({
-            from: `"StudentLife" <${process.env.SMTP_USER}>`,
+        // Gmail doesn't allow arbitrary From addresses, so we use Reply-To instead
+        const senderEmail = process.env.SMTP_USER; // Use authenticated Gmail account
+        const replyToEmail = fromAddress || process.env.SMTP_NOREPLY || process.env.SMTP_USER;
+        
+        const mailOptions = {
+            from: `"StudentLife" <${senderEmail}>`,
             to,
             subject,
             text: "Please view this email in HTML format.",
             html
-        });
-        console.log("Email sent:", info.messageId);
+        };
+
+        // Add Reply-To header if using no-reply address
+        if (fromAddress && fromAddress !== senderEmail) {
+            mailOptions.replyTo = `"StudentLife" <${replyToEmail}>`;
+        }
+
+        // Debug: Log email content
+        console.log('=== SENDMAIL DEBUG ===');
+        console.log('To:', to);
+        console.log('Subject:', subject);
+        console.log('HTML type:', typeof html);
+        console.log('HTML length:', html?.length);
+        console.log('HTML preview:', html?.substring(0, 300));
+        console.log('Contains img tags:', html?.includes('<img'));
+        console.log('Contains escaped HTML:', html?.includes('&lt;'));
+        console.log('=====================');
+        
+        const info = await transporter.sendMail(mailOptions);
+        console.log("Email sent:", info.messageId, "Reply-To:", mailOptions.replyTo || "None");
         return info;
     } catch (error) {
         console.error("Email send failed:", error.message, "| To:", to, "| Subject:", subject);
@@ -78,7 +100,7 @@ export const sendOrderConfirmationEmail = async ({ email, studentName, orderId, 
         <p style="font-size:12px;color:gray;">StudentLife – studentlife.dk</p>
     </div>`;
 
-    return sendEmail(email, `Order Confirmation – #${orderId}`, html);
+    return sendEmail(email, `Order Confirmation – #${orderId}`, html, process.env.SMTP_NOREPLY);
 };
 
 // ─────────────────────────────────────────────
@@ -103,7 +125,7 @@ export const sendChangeDeadlineEmail = async ({ email, studentName, orderId, cha
         <p style="font-size:12px;color:gray;">StudentLife – studentlife.dk</p>
     </div>`;
 
-    return sendEmail(email, `Reminder: Order Change Deadline – #${orderId}`, html);
+    return sendEmail(email, `Reminder: Order Change Deadline – #${orderId}`, html, process.env.SMTP_NOREPLY);
 };
 
 // ─────────────────────────────────────────────
@@ -132,7 +154,7 @@ export const sendStatusEmail = async ({ email, studentName, orderId, status, tra
         <p style="font-size:12px;color:gray;">StudentLife – studentlife.dk</p>
     </div>`;
 
-    return sendEmail(email, `Order Update: ${info.label} – #${orderId}`, html);
+    return sendEmail(email, `Order Update: ${info.label} – #${orderId}`, html, process.env.SMTP_NOREPLY);
 };
 
 // ─────────────────────────────────────────────
@@ -166,7 +188,7 @@ export const sendFollowUpEmail = async ({ email, studentName, educationType }) =
         <p style="font-size:12px;color:gray;">StudentLife – studentlife.dk</p>
     </div>`;
 
-    return sendEmail(email, 'Your StudentLife Garment – Care Guide & More', html);
+    return sendEmail(email, 'Your StudentLife Garment – Care Guide & More', html, process.env.SMTP_NOREPLY);
 };
 
 // ─────────────────────────────────────────────

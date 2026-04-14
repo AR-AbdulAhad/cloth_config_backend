@@ -71,15 +71,119 @@ export const editCountry = async (req, res) => {
     }
 };
 
-// Delete a country (Admin) — soft delete
+// Delete a country (Admin) — soft delete with safety checks
 export const removeCountry = async (req, res) => {
     try {
         const { id } = req.params;
+
+        const country = await prisma.country.findUnique({ 
+            where: { id: parseInt(id) }
+        });
+        
+        if (!country) {
+            return res.status(404).json({ success: false, message: "Country not found" });
+        }
+
+        if (country.status === 2) {
+            return res.status(400).json({ success: false, message: "Country is already deleted" });
+        }
+
+        // Check if country is being used by any classes
+        const activeClasses = await prisma.classes.count({
+            where: { 
+                country_id: parseInt(id),
+                status: { not: 2 }
+            }
+        });
+
+        if (activeClasses > 0) {
+            return res.status(400).json({ 
+                success: false, 
+                message: `Cannot delete country. It is currently used by ${activeClasses} active class(es)` 
+            });
+        }
+
+        // Check if country is being used by any back designs
+        const activeBackDesigns = await prisma.backDesign.count({
+            where: { 
+                country_id: parseInt(id),
+                status: { not: 2 }
+            }
+        });
+
+        if (activeBackDesigns > 0) {
+            return res.status(400).json({ 
+                success: false, 
+                message: `Cannot delete country. It is currently used by ${activeBackDesigns} active back design(s)` 
+            });
+        }
+
         await prisma.country.update({
             where: { id: parseInt(id) },
             data: { status: 2 }
         });
-        res.json({ success: true, message: "Country removed" });
+
+        res.json({ 
+            success: true, 
+            message: `Country "${country.name}" has been deleted` 
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// Permanently delete a country (Admin) — hard delete with confirmation
+export const permanentDeleteCountry = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { confirm } = req.body;
+
+        if (confirm !== 'DELETE') {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Please confirm deletion by sending 'confirm: DELETE' in request body" 
+            });
+        }
+
+        const country = await prisma.country.findUnique({ 
+            where: { id: parseInt(id) }
+        });
+        
+        if (!country) {
+            return res.status(404).json({ success: false, message: "Country not found" });
+        }
+
+        // Check if country is being used by any classes (including deleted ones)
+        const anyClasses = await prisma.classes.count({
+            where: { country_id: parseInt(id) }
+        });
+
+        if (anyClasses > 0) {
+            return res.status(400).json({ 
+                success: false, 
+                message: `Cannot permanently delete country. It is referenced by ${anyClasses} class(es). Use soft delete instead.` 
+            });
+        }
+
+        // Check if country is being used by any back designs (including deleted ones)
+        const anyBackDesigns = await prisma.backDesign.count({
+            where: { country_id: parseInt(id) }
+        });
+
+        if (anyBackDesigns > 0) {
+            return res.status(400).json({ 
+                success: false, 
+                message: `Cannot permanently delete country. It is referenced by ${anyBackDesigns} back design(s). Use soft delete instead.` 
+            });
+        }
+
+        // Delete from database
+        await prisma.country.delete({ where: { id: parseInt(id) } });
+
+        res.json({ 
+            success: true, 
+            message: `Country "${country.name}" has been permanently deleted` 
+        });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }

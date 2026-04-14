@@ -44,12 +44,89 @@ export const addFont = async (req, res) => {
     }
 };
 
-// Admin: delete font (soft)
+// Admin: delete font (soft) with safety checks
 export const removeFont = async (req, res) => {
     try {
         const { id } = req.params;
-        await prisma.font.update({ where: { id: parseInt(id) }, data: { status: 2 } });
-        res.json({ success: true, message: "Font removed" });
+
+        const font = await prisma.font.findUnique({ 
+            where: { id: parseInt(id) }
+        });
+        
+        if (!font) {
+            return res.status(404).json({ success: false, message: "Font not found" });
+        }
+
+        if (font.status === 2) {
+            return res.status(400).json({ success: false, message: "Font is already deleted" });
+        }
+
+        // Check if font is being used by any name lists
+        const activeNameLists = await prisma.nameList.count({
+            where: { font_id: parseInt(id) }
+        });
+
+        if (activeNameLists > 0) {
+            return res.status(400).json({ 
+                success: false, 
+                message: `Cannot delete font. It is currently used by ${activeNameLists} name list(s)` 
+            });
+        }
+
+        await prisma.font.update({ 
+            where: { id: parseInt(id) }, 
+            data: { status: 2 } 
+        });
+
+        res.json({ 
+            success: true, 
+            message: `Font "${font.name}" has been deleted` 
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// Admin: permanently delete font (hard delete with confirmation)
+export const permanentDeleteFont = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { confirm } = req.body;
+
+        if (confirm !== 'DELETE') {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Please confirm deletion by sending 'confirm: DELETE' in request body" 
+            });
+        }
+
+        const font = await prisma.font.findUnique({ 
+            where: { id: parseInt(id) }
+        });
+        
+        if (!font) {
+            return res.status(404).json({ success: false, message: "Font not found" });
+        }
+
+        // Check if font is being used by any name lists
+        const anyNameLists = await prisma.nameList.count({
+            where: { font_id: parseInt(id) }
+        });
+
+        if (anyNameLists > 0) {
+            return res.status(400).json({ 
+                success: false, 
+                message: `Cannot permanently delete font. It is referenced by ${anyNameLists} name list(s). Use soft delete instead.` 
+            });
+        }
+
+        // Delete from database
+        await prisma.font.delete({ where: { id: parseInt(id) } });
+
+        res.json({ 
+            success: true, 
+            message: `Font "${font.name}" has been permanently deleted` 
+        });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }

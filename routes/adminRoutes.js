@@ -6,10 +6,10 @@ import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { addSchool, listSchools, editSchool, removeSchool, getSchoolStats, getSchoolClasses } from "../controllers/schoolController.js";
 import { addClassRep, listClassReps, editClassRep, removeClassRep, adminResetPassword } from "../controllers/userController.js";
 import { addClass, editClass, removeClass, listAllClasses, toggleClassStatus, lockClass, unlockClass, updateClassProcessStatus } from "../controllers/classController.js";
-import { listSchoolLogos, approveLogo, rejectLogo, adminUploadLogo, adminUploadBackDesign } from "../controllers/logoController.js";
-import { listBackDesigns, approveBackDesign, rejectBackDesign, getClassBackDesigns, uploadLibraryDesign, getLibraryDesignsByCountry, getStudyTripCountries } from "../controllers/designController.js";
-import { listCountries, addCountry, editCountry, removeCountry } from "../controllers/countryController.js";
-import { listFonts, getActiveFonts, setNameListFont, addFont, removeFont } from "../controllers/fontController.js";
+import { listSchoolLogos, approveLogo, rejectLogo, adminUploadLogo, adminUploadBackDesign, adminDeleteLogo, adminPermanentDeleteLogo } from "../controllers/logoController.js";
+import { listBackDesigns, approveBackDesign, rejectBackDesign, getClassBackDesigns, uploadLibraryDesign, getLibraryDesignsByCountry, getStudyTripCountries, adminDeleteBackDesign, adminPermanentDeleteBackDesign, adminDeleteLibraryDesign, adminPermanentDeleteLibraryDesign } from "../controllers/designController.js";
+import { listCountries, addCountry, editCountry, removeCountry, permanentDeleteCountry } from "../controllers/countryController.js";
+import { listFonts, getActiveFonts, setNameListFont, addFont, removeFont, permanentDeleteFont } from "../controllers/fontController.js";
 import { generateProductionFiles, listProductionPackages, sendClassStatusEmail, sendFollowUpToClass } from "../controllers/productionController.js";
 import { assignClassRep } from "../controllers/classController.js";
 import { getDashboardStats, toggleEntityStatus, sendDeadlineReminder, testEmail, getClassStudents, getClassRep } from "../controllers/adminController.js";
@@ -71,17 +71,21 @@ router.post("/logos", adminMiddleware, listSchoolLogos);
 router.put("/approve-logo/:logoId", adminMiddleware, approveLogo);
 router.put("/reject-logo/:logoId", adminMiddleware, rejectLogo);
 router.post("/logo/upload", adminMiddleware, uploadAdminLogo.single("logo"), adminUploadLogo);
+router.delete("/logo/:logoId/delete", adminMiddleware, adminDeleteLogo);
+router.delete("/logo/:logoId/permanent-delete", adminMiddleware, adminPermanentDeleteLogo);
 
 // Countries
 router.post("/countries", adminMiddleware, listCountries);
 router.post("/country/create", adminMiddleware, addCountry);
 router.put("/country/:id/update", adminMiddleware, editCountry);
 router.delete("/country/:id/delete", adminMiddleware, removeCountry);
+router.delete("/country/:id/permanent-delete", adminMiddleware, permanentDeleteCountry);
 
 // Fonts
 router.post("/fonts", adminMiddleware, listFonts);
 router.post("/font/create", adminMiddleware, addFont);
 router.delete("/font/:id/delete", adminMiddleware, removeFont);
+router.delete("/font/:id/permanent-delete", adminMiddleware, permanentDeleteFont);
 
 // Back designs
 router.post("/back-designs", adminMiddleware, listBackDesigns);
@@ -92,6 +96,10 @@ router.post("/back-design/upload", adminMiddleware, uploadLibrary.single("design
 router.post("/library-design/upload", adminMiddleware, uploadLibrary.single("design"), uploadLibraryDesign);
 router.get("/library-designs", adminMiddleware, getLibraryDesignsByCountry);
 router.get("/study-trip-countries", adminMiddleware, getStudyTripCountries);
+router.delete("/back-design/:designId/delete", adminMiddleware, adminDeleteBackDesign);
+router.delete("/back-design/:designId/permanent-delete", adminMiddleware, adminPermanentDeleteBackDesign);
+router.delete("/library-design/:designId/delete", adminMiddleware, adminDeleteLibraryDesign);
+router.delete("/library-design/:designId/permanent-delete", adminMiddleware, adminPermanentDeleteLibraryDesign);
 router.put("/lock-class/:classId", adminMiddleware, lockClass);
 router.put("/unlock-class/:classId", adminMiddleware, unlockClass);
 router.put("/class/:classId/process-status", adminMiddleware, updateClassProcessStatus);

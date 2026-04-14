@@ -180,3 +180,105 @@ export const adminUploadBackDesign = async (req, res) => {
         res.status(500).json({ success: false, error: err.message });
     }
 };
+// Admin: delete any logo (soft delete)
+export const adminDeleteLogo = async (req, res) => {
+    try {
+        const { logoId } = req.params;
+
+        const logo = await prisma.logo.findUnique({ 
+            where: { id: parseInt(logoId) },
+            include: { school: { select: { name: true } } }
+        });
+        
+        if (!logo) {
+            return res.status(404).json({ success: false, message: "Logo not found" });
+        }
+
+        if (logo.status === 2) {
+            return res.status(400).json({ success: false, message: "Logo is already deleted" });
+        }
+
+        // Check if logo is being used in any active orders
+        const activeOrders = await prisma.order.count({
+            where: { 
+                selected_logo_id: parseInt(logoId),
+                status: { not: 2 }
+            }
+        });
+
+        if (activeOrders > 0) {
+            return res.status(400).json({ 
+                success: false, 
+                message: `Cannot delete logo. It is currently used in ${activeOrders} active order(s)` 
+            });
+        }
+
+        await prisma.logo.update({ 
+            where: { id: parseInt(logoId) }, 
+            data: { status: 2 } 
+        });
+
+        res.json({ 
+            success: true, 
+            message: `Logo "${logo.name}" from ${logo.school.name} has been deleted` 
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// Admin: permanently delete logo (hard delete with file removal)
+export const adminPermanentDeleteLogo = async (req, res) => {
+    try {
+        const { logoId } = req.params;
+        const { confirm } = req.body;
+
+        if (confirm !== 'DELETE') {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Please confirm deletion by sending 'confirm: DELETE' in request body" 
+            });
+        }
+
+        const logo = await prisma.logo.findUnique({ 
+            where: { id: parseInt(logoId) },
+            include: { school: { select: { name: true } } }
+        });
+        
+        if (!logo) {
+            return res.status(404).json({ success: false, message: "Logo not found" });
+        }
+
+        // Check if logo is being used in any orders (including deleted ones)
+        const anyOrders = await prisma.order.count({
+            where: { selected_logo_id: parseInt(logoId) }
+        });
+
+        if (anyOrders > 0) {
+            return res.status(400).json({ 
+                success: false, 
+                message: `Cannot permanently delete logo. It is referenced in ${anyOrders} order(s). Use soft delete instead.` 
+            });
+        }
+
+        // Delete file from filesystem
+        try {
+            const fs = await import('fs');
+            if (fs.existsSync(logo.file_path)) {
+                fs.unlinkSync(logo.file_path);
+            }
+        } catch (fileError) {
+            console.warn(`Warning: Could not delete file ${logo.file_path}:`, fileError.message);
+        }
+
+        // Delete from database
+        await prisma.logo.delete({ where: { id: parseInt(logoId) } });
+
+        res.json({ 
+            success: true, 
+            message: `Logo "${logo.name}" from ${logo.school.name} has been permanently deleted` 
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};

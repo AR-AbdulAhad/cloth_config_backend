@@ -8,15 +8,16 @@ export const getDashboardStats = async (req, res) => {
         const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
 
         const [
-            schoolCount, classCount, userCount,
+            schoolCount, classCount, studentCount, classRepCount,
             logoCount, backDesignCount, ordersCount,
             pendingLogos, pendingDesigns,
-            totalRevenue, recentOrders, recentStudents,
+            totalRevenue, recentOrders, recentStudents, recentClassReps,
             orderStatusCounts, topSchools
         ] = await Promise.all([
             prisma.school.count({ where: { status: { not: 2 } } }),
             prisma.classes.count({ where: { status: { not: 2 } } }),
             prisma.user.count({ where: { role: 'student', status: { not: 2 } } }),
+            prisma.user.count({ where: { role: 'class_representative', status: { not: 2 } } }),
             prisma.logo.count({ where: { status: { not: 2 } } }),
             prisma.backDesign.count({ where: { status: { not: 2 } } }),
             prisma.order.count({ where: { status: { not: 2 } } }),
@@ -36,6 +37,13 @@ export const getDashboardStats = async (req, res) => {
             // Recent 5 student registrations
             prisma.user.findMany({
                 where: { role: 'student', status: { not: 2 } },
+                orderBy: { created_at: 'desc' },
+                take: 5,
+                select: { id: true, name: true, email: true, created_at: true, class: { select: { name: true } } }
+            }),
+            // Recent 5 class rep registrations
+            prisma.user.findMany({
+                where: { role: 'class_representative', status: { not: 2 } },
                 orderBy: { created_at: 'desc' },
                 take: 5,
                 select: { id: true, name: true, email: true, created_at: true, class: { select: { name: true } } }
@@ -91,7 +99,8 @@ export const getDashboardStats = async (req, res) => {
                 stats: {
                     schools: schoolCount,
                     classes: classCount,
-                    students: userCount,
+                    students: studentCount,
+                    class_reps: classRepCount,
                     orders: ordersCount,
                     total_revenue: parseFloat(totalRevenue._sum.amount_paid || 0),
                     pending_approvals: pendingLogos + pendingDesigns
@@ -123,6 +132,13 @@ export const getDashboardStats = async (req, res) => {
                     email: s.email,
                     class: s.class?.name || '-',
                     time: s.created_at
+                })),
+                recent_class_reps: recentClassReps.map(cr => ({
+                    id: cr.id,
+                    name: cr.name,
+                    email: cr.email,
+                    class: cr.class?.name || '-',
+                    time: cr.created_at
                 })),
                 // Server time in EU (Copenhagen)
                 server_time: new Date().toLocaleString('da-DK', { timeZone: 'Europe/Copenhagen' })
