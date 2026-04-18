@@ -114,6 +114,7 @@ model Classes {
   process_status      ClassStatus @default(active)
   back_design_id      Int?
   country_id          Int?
+  expected_students   Int?        // Target number of students for graduation caps
   status              Int         @default(0)
   created_at          DateTime    @default(now())
 

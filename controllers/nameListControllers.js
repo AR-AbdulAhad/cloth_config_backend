@@ -22,7 +22,6 @@ export const getAllNameList = async (req, res) => {
                     class: {
                         name: {
                             contains: search,
-                            mode: "insensitive",
                         },
                     },
                 },
@@ -31,7 +30,6 @@ export const getAllNameList = async (req, res) => {
                         some: {
                             name: {
                                 contains: search,
-                                mode: "insensitive",
                             },
                         },
                     },

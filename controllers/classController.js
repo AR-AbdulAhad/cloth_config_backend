@@ -147,7 +147,7 @@ export const listMyClass = async (req, res) => {
 
         const classData = await prisma.classes.findFirst({
             where: { id: classId, status: { not: 2 } },
-            include: { school: true, users: { where: { role: 'class_representative' } } }
+            include: { school: true, country: true, users: { where: { role: 'class_representative' } } }
         });
         res.json({ success: true, data: [classData] });
     } catch (err) {
@@ -267,5 +267,147 @@ export const updateClassProcessStatus = async (req, res) => {
         res.json({ success: true, message: `Class status updated to ${process_status}` });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
+    }
+};
+// Set expected student count for a class (Admin or Class Rep)
+export const setExpectedStudentCount = async (req, res) => {
+    try {
+        const { classId } = req.params;
+        const { expected_students } = req.body;
+
+        if (!expected_students || expected_students < 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Expected student count must be a positive number"
+            });
+        }
+
+        // Check if user has permission to update this class
+        const userRole = req.user.role;
+        const userId = req.user.id;
+
+        if (userRole === 'class_representative') {
+            // Class rep can only update their assigned class
+            if (req.user.class_id !== parseInt(classId)) {
+                return res.status(403).json({
+                    success: false,
+                    message: "You can only update your assigned class"
+                });
+            }
+        } else if (userRole !== 'admin' && userRole !== 'server_owner') {
+            return res.status(403).json({
+                success: false,
+                message: "Insufficient permissions"
+            });
+        }
+
+        // Check if the expected_students field exists in the database
+        try {
+            const updatedClass = await prisma.classes.update({
+                where: { id: parseInt(classId) },
+                data: { expected_students: parseInt(expected_students) }
+            });
+
+            res.json({
+                success: true,
+                message: "Expected student count updated successfully",
+                data: {
+                    class_id: updatedClass.id,
+                    expected_students: updatedClass.expected_students
+                }
+            });
+        } catch (updateErr) {
+            // If the field doesn't exist, return a helpful message
+            if (updateErr.message.includes('expected_students')) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Database migration required. Run 'npx prisma db push' to add expected_students field.",
+                    migration_required: true
+                });
+            }
+            throw updateErr;
+        }
+    } catch (err) {
+        const error = handlePrismaError(err);
+        res.status(error.status).json({ success: false, error: error.message });
+    }
+};
+
+// Get student count information for a class
+export const getStudentCount = async (req, res) => {
+    try {
+        const { classId } = req.params;
+
+        // Check if user has permission to view this class
+        const userRole = req.user.role;
+
+        if (userRole === 'class_representative') {
+            // Class rep can only view their assigned class
+            if (req.user.class_id !== parseInt(classId)) {
+                return res.status(403).json({
+                    success: false,
+                    message: "You can only view your assigned class"
+                });
+            }
+        } else if (userRole !== 'admin' && userRole !== 'server_owner') {
+            return res.status(403).json({
+                success: false,
+                message: "Insufficient permissions"
+            });
+        }
+
+        // Get class info with expected students
+        const classInfo = await prisma.classes.findUnique({
+            where: { id: parseInt(classId) },
+            select: {
+                id: true,
+                name: true,
+                expected_students: true,
+                graduation_year: true
+            }
+        });
+
+        if (!classInfo) {
+            return res.status(404).json({
+                success: false,
+                message: "Class not found"
+            });
+        }
+
+        // Count registered students in this class
+        const registeredCount = await prisma.user.count({
+            where: {
+                class_id: parseInt(classId),
+                role: 'student',
+                status: { not: 2 } // Exclude deleted users
+            }
+        });
+
+        // Count students with orders
+        const studentsWithOrders = await prisma.order.count({
+            where: {
+                class_id: parseInt(classId),
+                status: { not: 2 } // Exclude deleted orders
+            },
+            distinct: ['student_id']
+        });
+
+        res.json({
+            success: true,
+            data: {
+                class_id: classInfo.id,
+                class_name: classInfo.name,
+                graduation_year: classInfo.graduation_year,
+                expected_students: classInfo.expected_students || 0,
+                registered_students: registeredCount,
+                students_with_orders: studentsWithOrders,
+                completion_percentage: classInfo.expected_students > 0 
+                    ? Math.round((registeredCount / classInfo.expected_students) * 100) 
+                    : 0
+            }
+        });
+    } catch (err) {
+        const error = handlePrismaError(err);
+        res.status(error.status).json({ success: false, error: error.message });
     }
 };

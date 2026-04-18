@@ -1,4 +1,5 @@
 import prisma from "../config/prisma.js";
+import { sendBackDesignUploadNotificationEmail, getAdminNotificationEmails } from "../utils/emailService.js";
 
 // export const uploadClassBackDesign = async (req, res) => {
 //     try {
@@ -74,6 +75,41 @@ export const uploadClassBackDesign = async (req, res) => {
             }
         });
 
+        // Send notification email to admin(s)
+        try {
+            // Get class, school and user info for notification
+            const [classInfo, user, adminEmails] = await Promise.all([
+                prisma.classes.findUnique({ 
+                    where: { id: parseInt(classId) }, 
+                    include: { school: { select: { name: true } } }
+                }),
+                prisma.user.findUnique({ 
+                    where: { id: req.user.id }, 
+                    select: { name: true, email: true } 
+                }),
+                getAdminNotificationEmails()
+            ]);
+
+            // Send notification to all admins
+            const notificationPromises = adminEmails.map(adminEmail => 
+                sendBackDesignUploadNotificationEmail({
+                    adminEmail,
+                    designName: design.name,
+                    className: classInfo?.name || 'Unknown Class',
+                    schoolName: classInfo?.school?.name || 'Unknown School',
+                    classRepName: user?.name || 'Unknown User',
+                    classRepEmail: user?.email || 'Unknown Email',
+                    designId: design.id
+                })
+            );
+
+            await Promise.allSettled(notificationPromises);
+            console.log(`Back design upload notification sent to ${adminEmails.length} admin(s)`);
+        } catch (emailError) {
+            console.error('Failed to send back design upload notification:', emailError.message);
+            // Don't fail the upload if email fails
+        }
+
         res.json({ success: true, message: "Back design uploaded", data: design });
     } catch (err) {
         console.error(err);
@@ -137,7 +173,7 @@ export const listBackDesigns = async (req, res) => {
         const where = {
             ...(class_id && { class_id: parseInt(class_id) }),
             ...(statusFilter !== undefined && statusFilter !== '' && { status: parseInt(statusFilter) }),
-            ...(search && { OR: [{ name: { contains: search, mode: 'insensitive' } }] })
+            ...(search && { OR: [{ name: { contains: search } }] })
         };
 
         const [results, total] = await Promise.all([

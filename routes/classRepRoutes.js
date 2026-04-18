@@ -2,7 +2,7 @@ import express from "express";
 import path from "path";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { generateRegistrationLink } from "../controllers/userController.js";
-import { listClasses, getStudentOverview, listStudents, getAssignedClass, listMyLogos, listMyBackDesigns } from "../controllers/classRepController.js";
+import { listClasses, getStudentOverview, listStudents, getAssignedClass, listMyLogos, listMyBackDesigns, setMyClassExpectedStudentCount, getMyClassStudentCount } from "../controllers/classRepController.js";
 import { listMyClass, editClass } from "../controllers/classController.js";
 import { uploadSchoolLogo, deleteMyLogo } from "../controllers/logoController.js";
 import { uploadClassBackDesign, getConfiguratorBackDesign, reUploadClassBackDesign, setClassStudyTripCountry, getLibraryDesignsForMyClass, getStudyTripCountries, deleteMyBackDesign, editMyBackDesign, saveConfiguratorState, loadConfiguratorState } from "../controllers/designController.js";
@@ -61,6 +61,8 @@ const middleware = authMiddleware("class_representative");
 // Class Management
 router.get("/get-class", middleware, listMyClass);
 router.get("/assigned-class", middleware, getAssignedClass);
+router.put("/class/:classId/expected-students", middleware, setMyClassExpectedStudentCount);
+router.get("/class/:classId/student-count", middleware, getMyClassStudentCount);
 // router.put("/class/:id/update", middleware, editClass);
 
 // Student Management

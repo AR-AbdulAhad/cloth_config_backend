@@ -140,7 +140,7 @@ export const listStudents = async (req, res) => {
             status: { not: 2 },
             ...(search && {
                 OR: [
-                    { name: { contains: search, mode: 'insensitive' } }
+                    { name: { contains: search } }
                 ]
             })
         };
@@ -475,7 +475,7 @@ export const getStudentOverview = async (req, res) => {
             status: { not: 2 },
             ...(search && {
                 OR: [
-                    { name: { contains: search, mode: 'insensitive' } }
+                    { name: { contains: search } }
                 ]
             })
         };
@@ -532,6 +532,131 @@ export const getStudentOverview = async (req, res) => {
             summary: {
                 total_registered: total,
                 total_completed_orders: totalCompletedOrders
+            }
+        });
+    } catch (err) {
+        const error = handlePrismaError(err);
+        res.status(error.status).json({ success: false, error: error.message });
+    }
+};
+// Set expected student count for assigned class (Class Rep only)
+export const setMyClassExpectedStudentCount = async (req, res) => {
+    try {
+        const { classId } = req.params;
+        const { expected_students } = req.body;
+        const userClassId = req.user.class_id;
+
+        // Check if class rep is trying to update their own class
+        if (parseInt(classId) !== userClassId) {
+            return res.status(403).json({
+                success: false,
+                message: "You can only update your assigned class"
+            });
+        }
+
+        if (!expected_students || expected_students < 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Expected student count must be a positive number"
+            });
+        }
+
+        // Check if the expected_students field exists in the database
+        try {
+            const updatedClass = await prisma.classes.update({
+                where: { id: parseInt(classId) },
+                data: { expected_students: parseInt(expected_students) }
+            });
+
+            res.json({
+                success: true,
+                message: "Expected student count updated successfully",
+                data: {
+                    class_id: updatedClass.id,
+                    expected_students: updatedClass.expected_students
+                }
+            });
+        } catch (updateErr) {
+            // If the field doesn't exist, return a helpful message
+            if (updateErr.message.includes('expected_students')) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Database migration required. Run 'npx prisma db push' to add expected_students field.",
+                    migration_required: true
+                });
+            }
+            throw updateErr;
+        }
+    } catch (err) {
+        const error = handlePrismaError(err);
+        res.status(error.status).json({ success: false, error: error.message });
+    }
+};
+
+// Get student count information for assigned class (Class Rep only)
+export const getMyClassStudentCount = async (req, res) => {
+    try {
+        const { classId } = req.params;
+        const userClassId = req.user.class_id;
+
+        // Check if class rep is trying to view their own class
+        if (parseInt(classId) !== userClassId) {
+            return res.status(403).json({
+                success: false,
+                message: "You can only view your assigned class"
+            });
+        }
+
+        // Get class info with expected_students
+        const classInfo = await prisma.classes.findUnique({
+            where: { id: parseInt(classId) },
+            select: {
+                id: true,
+                name: true,
+                graduation_year: true,
+                expected_students: true
+            }
+        });
+
+        if (!classInfo) {
+            return res.status(404).json({
+                success: false,
+                message: "Class not found"
+            });
+        }
+
+        // Count registered students in this class
+        const registeredCount = await prisma.user.count({
+            where: {
+                class_id: parseInt(classId),
+                role: 'student',
+                status: { not: 2 } // Exclude deleted users
+            }
+        });
+
+        // Count students with orders
+        const studentsWithOrdersData = await prisma.order.groupBy({
+            by: ['student_id'],
+            where: {
+                class_id: parseInt(classId),
+                status: { not: 2 }
+            }
+        });
+
+        const studentsWithOrders = studentsWithOrdersData.length;
+
+        res.json({
+            success: true,
+            data: {
+                class_id: classInfo.id,
+                class_name: classInfo.name,
+                graduation_year: classInfo.graduation_year,
+                expected_students: classInfo.expected_students || 0,
+                registered_students: registeredCount,
+                students_with_orders: studentsWithOrders,
+                completion_percentage: classInfo.expected_students > 0 
+                    ? Math.round((registeredCount / classInfo.expected_students) * 100) 
+                    : 0
             }
         });
     } catch (err) {

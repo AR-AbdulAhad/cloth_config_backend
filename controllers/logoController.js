@@ -1,5 +1,6 @@
 import prisma from "../config/prisma.js";
 import { handlePrismaError } from "../utils/errorHandler.js";
+import { sendLogoUploadNotificationEmail, getAdminNotificationEmails } from "../utils/emailService.js";
 
 export const uploadSchoolLogo = async (req, res) => {
     try {
@@ -28,6 +29,34 @@ export const uploadSchoolLogo = async (req, res) => {
                 status: 1
             }
         });
+
+        // Send notification email to admin(s)
+        try {
+            // Get school and user info for notification
+            const [school, user, adminEmails] = await Promise.all([
+                prisma.school.findUnique({ where: { id: schoolId }, select: { name: true } }),
+                prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } }),
+                getAdminNotificationEmails()
+            ]);
+
+            // Send notification to all admins
+            const notificationPromises = adminEmails.map(adminEmail => 
+                sendLogoUploadNotificationEmail({
+                    adminEmail,
+                    logoName: logoName,
+                    schoolName: school?.name || 'Unknown School',
+                    classRepName: user?.name || 'Unknown User',
+                    classRepEmail: user?.email || 'Unknown Email',
+                    logoId: logo.id
+                })
+            );
+
+            await Promise.allSettled(notificationPromises);
+            console.log(`Logo upload notification sent to ${adminEmails.length} admin(s)`);
+        } catch (emailError) {
+            console.error('Failed to send logo upload notification:', emailError.message);
+            // Don't fail the upload if email fails
+        }
 
         res.json({ success: true, message: "Logo uploaded successfully", data: logo });
     } catch (err) {

@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import prisma from '../config/prisma.js';
 
 const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
@@ -13,34 +14,43 @@ const transporter = nodemailer.createTransport({
 
 export const sendEmail = async (to, subject, html, fromAddress = null) => {
     try {
-        // Gmail doesn't allow arbitrary From addresses, so we use Reply-To instead
-        const senderEmail = process.env.SMTP_USER; // Use authenticated Gmail account
-        const replyToEmail = fromAddress || process.env.SMTP_NOREPLY || process.env.SMTP_USER;
+        // Use no-reply address as default sender for clothing-related emails
+        const senderEmail = process.env.SMTP_USER; // Gmail authenticated account
+        const noReplyEmail = process.env.SMTP_NOREPLY || 'noreply@studentlife.dk';
         
+        // For notification emails, use noreply as display name
+        const isNotificationEmail = subject.includes('New Logo Upload') || subject.includes('New Back Design Upload');
+        const displayName = isNotificationEmail ? 'StudentLife Notifications' : 'StudentLife';
+        const displayEmail = isNotificationEmail ? noReplyEmail : senderEmail;
+
         const mailOptions = {
-            from: `"StudentLife" <${senderEmail}>`,
+            from: `"${displayName}" <${noReplyEmail}>`, // Gmail requires authenticated email
             to,
             subject,
             text: "Please view this email in HTML format.",
-            html
+            html,
+            replyTo: `"StudentLife No-Reply" <${noReplyEmail}>`,
+            // Add custom headers to show noreply in some email clients
+            headers: {
+                'X-Original-Sender': noReplyEmail,
+                'X-Sender': noReplyEmail
+            }
         };
-
-        // Add Reply-To header if using no-reply address
-        if (fromAddress && fromAddress !== senderEmail) {
-            mailOptions.replyTo = `"StudentLife" <${replyToEmail}>`;
-        }
 
         // Debug: Log email content
         console.log('=== SENDMAIL DEBUG ===');
         console.log('To:', to);
         console.log('Subject:', subject);
+        console.log('From:', mailOptions.from);
+        console.log('Reply-To:', mailOptions.replyTo);
+        console.log('Is Notification:', isNotificationEmail);
         console.log('HTML type:', typeof html);
         console.log('HTML length:', html?.length);
         console.log('HTML preview:', html?.substring(0, 300));
         console.log('Contains img tags:', html?.includes('<img'));
         console.log('Contains escaped HTML:', html?.includes('&lt;'));
         console.log('=====================');
-        
+
         const info = await transporter.sendMail(mailOptions);
         console.log("Email sent:", info.messageId, "Reply-To:", mailOptions.replyTo || "None");
         return info;
@@ -210,4 +220,105 @@ export const sendClassRepWelcomeEmail = async (email, joinLink) => {
     </div>`;
 
     return sendEmail(email, 'Class Representative Account Created', html);
+};
+// ─────────────────────────────────────────────
+// EMAIL: New Logo Upload Notification (Admin)
+// Trigger: when class rep uploads a new logo
+// ─────────────────────────────────────────────
+export const sendLogoUploadNotificationEmail = async ({ adminEmail, logoName, schoolName, classRepName, classRepEmail, logoId }) => {
+    const html = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:20px;">
+        <h2 style="color:#e67e22;">New Logo Upload Notification</h2>
+        <p>A new logo has been uploaded and requires review.</p>
+        
+        <div style="background:#f8f9fa;padding:15px;border-radius:5px;margin:15px 0;">
+            <h3 style="color:#006d75;margin-top:0;">Logo Details</h3>
+            <p><strong>Logo Name:</strong> ${logoName}</p>
+            <p><strong>School:</strong> ${schoolName}</p>
+            <p><strong>Status:</strong> Pending Review</p>
+        </div>
+
+        
+
+        <hr style="margin:20px 0;"/>
+        <p style="font-size:12px;color:gray;">StudentLife Admin Notification System</p>
+    </div>`;
+
+    return sendEmail(adminEmail, `New Logo Upload: ${logoName} - ${schoolName}`, html);
+};
+{/*
+    <p><strong>Uploaded by:</strong> ${classRepName} (${classRepEmail})</p>
+<p><strong>Logo ID:</strong> #${logoId}</p>
+
+<p>Please review and approve/reject this logo in the admin panel.</p>
+        
+        <a href="${process.env.LIVE_FRONTEND_URL}/admin/logos" 
+           style="display:inline-block;padding:12px 24px;background:#006d75;color:#fff;text-decoration:none;border-radius:5px;margin:10px 0;">
+            Review Logo
+        </a> */}
+// ─────────────────────────────────────────────
+// EMAIL: New Back Design Upload Notification (Admin)
+// Trigger: when class rep uploads a new back design
+// ─────────────────────────────────────────────
+export const sendBackDesignUploadNotificationEmail = async ({ adminEmail, designName, className, schoolName, classRepName, classRepEmail, designId }) => {
+    const html = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:20px;">
+        <h2 style="color:#9b59b6;">New Back Design Upload Notification</h2>
+        <p>A new back design has been uploaded and requires review.</p>
+        
+        <div style="background:#f8f9fa;padding:15px;border-radius:5px;margin:15px 0;">
+            <h3 style="color:#006d75;margin-top:0;">Design Details</h3>
+            <p><strong>Design Name:</strong> ${designName}</p>
+            <p><strong>Class:</strong> ${className}</p>
+            <p><strong>School:</strong> ${schoolName}</p>
+           
+            <p><strong>Status:</strong> Pending Review</p>
+        </div>
+
+      
+
+        <hr style="margin:20px 0;"/>
+        <p style="font-size:12px;color:gray;">StudentLife Admin Notification System</p>
+    </div>`;
+
+    return sendEmail(adminEmail, `New Back Design Upload: ${designName} - ${className}`, html);
+};
+//  <p><strong>Design ID:</strong> #${designId}</p>
+//   <p>Please review and approve/reject this back design in the admin panel.</p>
+//  <p><strong>Uploaded by:</strong> ${classRepName} (${classRepEmail})</p> 
+//         <a href="${process.env.LIVE_FRONTEND_URL}/admin/back-designs" 
+//            style="display:inline-block;padding:12px 24px;background:#006d75;color:#fff;text-decoration:none;border-radius:5px;margin:10px 0;">
+//             Review Design
+//         </a>
+// ─────────────────────────────────────────────
+// Helper function to get admin notification emails
+// ─────────────────────────────────────────────
+export const getAdminNotificationEmails = async () => {
+    try {
+        // First try to get from environment variable
+        if (process.env.ADMIN_NOTIFICATION_EMAILS) {
+            const envEmails = process.env.ADMIN_NOTIFICATION_EMAILS
+                .split(',')
+                .map(email => email.trim())
+                .filter(email => email.length > 0);
+
+            if (envEmails.length > 0) {
+                return envEmails;
+            }
+        }
+
+        // Fallback to database admin users
+        const adminUsers = await prisma.user.findMany({
+            where: {
+                role: { in: ['admin', 'server_owner'] },
+                status: { not: 2 }
+            },
+            select: { email: true }
+        });
+
+        return adminUsers.map(admin => admin.email);
+    } catch (error) {
+        console.error('Error getting admin notification emails:', error.message);
+        return [];
+    }
 };

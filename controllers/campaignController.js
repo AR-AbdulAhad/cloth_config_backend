@@ -201,7 +201,7 @@ export const deleteCampaign = async (req, res) => {
 export const sendCampaign = async (req, res) => {
     try {
         const campaignId = parseInt(req.params.id);
-        const { force = false } = req.body || {};
+        const { force = false, userId = null } = req.body || {};
         const campaign = await prisma.campaign.findUnique({ where: { id: campaignId } });
 
         if (!campaign) return res.status(404).json({ success: false, message: "Campaign not found" });
@@ -211,43 +211,57 @@ export const sendCampaign = async (req, res) => {
         const consentFilter = force ? {} : { consent_marketing: true };
 
         // Debug
-        console.log('Campaign target:', { type: campaign.target_type, id: campaign.target_id, role: campaign.target_role, force });
+        console.log('Campaign target:', { type: campaign.target_type, id: campaign.target_id, role: campaign.target_role, force, userId });
 
         let users = [];
 
-        switch (campaign.target_type) {
-            case "all":
-                users = await prisma.user.findMany({ where: { status: { not: 2 }, ...consentFilter }, select: { email: true, name: true } });
-                break;
+        // NEW: If userId is provided, send to specific user only
+        if (userId) {
+            const user = await prisma.user.findUnique({ 
+                where: { id: parseInt(userId) }, 
+                select: { email: true, name: true, status: true, consent_marketing: true } 
+            });
+            if (user && user.status !== 2 && (force || user.consent_marketing)) {
+                users = [user];
+            } else {
+                return res.status(400).json({ success: false, message: "User not found or not eligible for emails" });
+            }
+        } else {
+            // Existing targeting logic
+            switch (campaign.target_type) {
+                case "all":
+                    users = await prisma.user.findMany({ where: { status: { not: 2 }, ...consentFilter }, select: { email: true, name: true } });
+                    break;
 
-            case "class":
-                if (!campaign.target_id) return res.status(400).json({ success: false, message: "target_id required for class targeting" });
-                users = await prisma.user.findMany({ where: { class_id: campaign.target_id, status: { not: 2 }, ...consentFilter }, select: { email: true, name: true } });
-                break;
+                case "class":
+                    if (!campaign.target_id) return res.status(400).json({ success: false, message: "target_id required for class targeting" });
+                    users = await prisma.user.findMany({ where: { class_id: campaign.target_id, status: { not: 2 }, ...consentFilter }, select: { email: true, name: true } });
+                    break;
 
-            case "school":
-                if (!campaign.target_id) return res.status(400).json({ success: false, message: "target_id required for school targeting" });
-                users = await prisma.user.findMany({ where: { school_id: campaign.target_id, status: { not: 2 }, ...consentFilter }, select: { email: true, name: true } });
-                break;
+                case "school":
+                    if (!campaign.target_id) return res.status(400).json({ success: false, message: "target_id required for school targeting" });
+                    users = await prisma.user.findMany({ where: { school_id: campaign.target_id, status: { not: 2 }, ...consentFilter }, select: { email: true, name: true } });
+                    break;
 
-            case "role":
-                if (!campaign.target_role) return res.status(400).json({ success: false, message: "target_role required for role targeting" });
-                users = await prisma.user.findMany({ where: { role: campaign.target_role, status: { not: 2 }, ...consentFilter }, select: { email: true, name: true } });
-                break;
+                case "role":
+                    if (!campaign.target_role) return res.status(400).json({ success: false, message: "target_role required for role targeting" });
+                    users = await prisma.user.findMany({ where: { role: campaign.target_role, status: { not: 2 }, ...consentFilter }, select: { email: true, name: true } });
+                    break;
 
-            case "individual":
-                if (!campaign.target_id) return res.status(400).json({ success: false, message: "target_id required for individual targeting" });
-                const user = await prisma.user.findUnique({ where: { id: campaign.target_id }, select: { email: true, name: true, status: true, consent_marketing: true } });
-                if (user && user.status !== 2 && (force || user.consent_marketing)) users = [user];
-                break;
+                case "individual":
+                    if (!campaign.target_id) return res.status(400).json({ success: false, message: "target_id required for individual targeting" });
+                    const user = await prisma.user.findUnique({ where: { id: campaign.target_id }, select: { email: true, name: true, status: true, consent_marketing: true } });
+                    if (user && user.status !== 2 && (force || user.consent_marketing)) users = [user];
+                    break;
 
-            default:
-                return res.status(400).json({ success: false, message: "Invalid target_type" });
+                default:
+                    return res.status(400).json({ success: false, message: "Invalid target_type" });
+            }
         }
 
         if (users.length === 0) {
             console.log('No users found. consentFilter:', consentFilter);
-            console.log('Campaign details:', { target_type: campaign.target_type, target_id: campaign.target_id });
+            console.log('Campaign details:', { target_type: campaign.target_type, target_id: campaign.target_id, userId });
             
             // Debug: Check if there are any users for this school without filters
             if (campaign.target_type === 'school') {
@@ -285,13 +299,83 @@ export const sendCampaign = async (req, res) => {
             }
         }
 
-        // Update campaign status
-        await prisma.campaign.update({
-            where: { id: campaignId },
-            data: { status: "sent", sent_count: sent, failed_count: failed, sent_at: new Date() }
+        // Update campaign status only if not sending to specific user
+        if (!userId) {
+            await prisma.campaign.update({
+                where: { id: campaignId },
+                data: { status: "sent", sent_count: sent, failed_count: failed, sent_at: new Date() }
+            });
+        }
+
+        const message = userId ? 
+            `Email sent to specific user: ${sent} sent, ${failed} failed` : 
+            `Campaign sent to ${sent} users, ${failed} failed`;
+
+        res.json({ success: true, message, data: { sent, failed } });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// NEW: Send campaign to specific user by userId
+export const sendCampaignToUser = async (req, res) => {
+    try {
+        const campaignId = parseInt(req.params.id);
+        const { userId, force = false } = req.body;
+
+        if (!userId) {
+            return res.status(400).json({ success: false, message: "userId is required" });
+        }
+
+        const campaign = await prisma.campaign.findUnique({ where: { id: campaignId } });
+        if (!campaign) return res.status(404).json({ success: false, message: "Campaign not found" });
+
+        // Get user details
+        const user = await prisma.user.findUnique({ 
+            where: { id: parseInt(userId) }, 
+            select: { id: true, email: true, name: true, status: true, consent_marketing: true } 
         });
 
-        res.json({ success: true, message: `Campaign sent to ${sent} users, ${failed} failed`, data: { sent, failed } });
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        if (user.status === 2) {
+            return res.status(400).json({ success: false, message: "User is inactive" });
+        }
+
+        if (!force && !user.consent_marketing) {
+            return res.status(400).json({ success: false, message: "User has not consented to marketing emails" });
+        }
+
+        // Personalize email content
+        const personalizedHtml = campaign.html_body.replace(/\{\{name\}\}/g, user.name);
+        const personalizedSubject = campaign.subject.replace(/\{\{name\}\}/g, user.name);
+
+        // Send email
+        try {
+            await sendEmail(user.email, personalizedSubject, personalizedHtml, process.env.SMTP_NOREPLY);
+            
+            res.json({ 
+                success: true, 
+                message: `Email sent successfully to ${user.name} (${user.email})`,
+                data: { 
+                    user_id: user.id,
+                    user_name: user.name,
+                    user_email: user.email,
+                    campaign_id: campaignId,
+                    campaign_title: campaign.title
+                }
+            });
+        } catch (emailError) {
+            console.error(`Failed to send email to ${user.email}:`, emailError.message);
+            res.status(500).json({ 
+                success: false, 
+                message: `Failed to send email to ${user.name}`,
+                error: emailError.message 
+            });
+        }
+
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }

@@ -260,6 +260,11 @@ export const getConfiguratorData = async (req, res) => {
 export const getOrderHistory = async (req, res) => {
     try {
         const { orderId } = req.params;
+        
+        // Add pagination support
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 50; // Default to 50 entries
+        const skip = (page - 1) * limit;
 
         if (!orderId) {
             return res.status(400).json({ 
@@ -277,15 +282,28 @@ export const getOrderHistory = async (req, res) => {
             });
         }
 
+        // Get total count for pagination
+        const total = await prisma.orderHistory.count({
+            where: { order_id: parseInt(orderId) }
+        });
+
         const history = await prisma.orderHistory.findMany({
             where: { order_id: parseInt(orderId) },
-            orderBy: { version: 'desc' }
+            orderBy: { version: 'desc' },
+            skip,
+            take: limit
         });
 
         res.json({ 
             success: true, 
             data: history,
-            count: history.length 
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit),
+                hasMore: skip + limit < total
+            }
         });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
@@ -295,6 +313,11 @@ export const getOrderHistory = async (req, res) => {
 export const getMyOrderHistory = async (req, res) => {
     try {
         const studentId = req.user.id;
+        
+        // Add pagination support
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 50; // Default to 50 entries
+        const skip = (page - 1) * limit;
 
         // Check if orderHistory model exists in Prisma client
         if (!prisma.orderHistory) {
@@ -317,19 +340,39 @@ export const getMyOrderHistory = async (req, res) => {
             return res.json({ 
                 success: true, 
                 message: "No order found",
-                data: [] 
+                data: [],
+                pagination: {
+                    total: 0,
+                    page: 1,
+                    limit,
+                    totalPages: 0,
+                    hasMore: false
+                }
             });
         }
 
+        // Get total count for pagination
+        const total = await prisma.orderHistory.count({
+            where: { order_id: order.id }
+        });
+
         const history = await prisma.orderHistory.findMany({
             where: { order_id: order.id },
-            orderBy: { version: 'desc' }
+            orderBy: { version: 'desc' },
+            skip,
+            take: limit
         });
 
         res.json({ 
             success: true, 
             data: history,
-            count: history.length 
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit),
+                hasMore: skip + limit < total
+            }
         });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
@@ -417,6 +460,197 @@ export const lockOrder = async (req, res) => {
         res.status(500).json({ 
             success: false, 
             error: err.message 
+        });
+    }
+};
+
+// Reset order to start fresh design from scratch
+export const resetOrder = async (req, res) => {
+    try {
+        const studentId = req.user.id;
+        const { orderId } = req.params;
+
+        // Find the order
+        const order = await prisma.order.findFirst({
+            where: { 
+                id: parseInt(orderId),
+                student_id: parseInt(studentId),
+                status: { not: 2 }
+            },
+            include: { order_items: true }
+        });
+
+        if (!order) {
+            return res.status(404).json({ 
+                success: false, 
+                message: "Order not found" 
+            });
+        }
+
+        // Check if order is locked
+        if (order.is_locked) {
+            return res.status(403).json({ 
+                success: false, 
+                message: "Cannot reset locked order" 
+            });
+        }
+
+        await prisma.$transaction(async (tx) => {
+            // Save current state to history before reset
+            await tx.orderHistory.create({
+                data: {
+                    order_id: order.id,
+                    action: "reset_order",
+                    changed_by: parseInt(studentId),
+                    version: order.version,
+                    changes: {
+                        previousItems: order.order_items,
+                        previousTotal: order.total_amount,
+                        previousLogo: order.selected_logo_id,
+                        previousDelivery: order.delivery_details
+                    },
+                    changes_summary: `Order reset - Version ${order.version} cleared`
+                }
+            });
+
+            // Delete all order items
+            await tx.orderItem.deleteMany({
+                where: { order_id: order.id }
+            });
+
+            // Reset order to initial state
+            await tx.order.update({
+                where: { id: order.id },
+                data: {
+                    selected_logo_id: null,
+                    delivery_details: null,
+                    process_status: 'in_progress',
+                    version: order.version + 1,
+                    total_amount: 0,
+                    amount_paid: 0,
+                    payment_status: 'unpaid',
+                    stripe_payment_intent: null,
+                    stripe_session_id: null,
+                    updated_at: new Date()
+                }
+            });
+        });
+
+        res.json({ 
+            success: true, 
+            message: "Order reset successfully. You can start designing from scratch.",
+            data: { orderId: order.id, newVersion: order.version + 1 }
+        });
+
+    } catch (err) {
+        res.status(500).json({ 
+            success: false, 
+            error: err.message 
+        });
+    }
+};
+
+// Create completely new order (alternative to reset)
+export const createFreshOrder = async (req, res) => {
+    try {
+        const studentId = req.user.id;
+
+        // Check if student already has an active order
+        const existingOrder = await prisma.order.findFirst({
+            where: { 
+                student_id: parseInt(studentId),
+                status: { not: 2 }
+            }
+        });
+
+        if (existingOrder && !existingOrder.is_locked) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "You already have an active order. Use reset instead or complete the existing order first.",
+                data: { existingOrderId: existingOrder.id }
+            });
+        }
+
+        // Get student's class
+        const student = await prisma.user.findUnique({
+            where: { id: parseInt(studentId) },
+            select: { class_id: true }
+        });
+
+        if (!student || !student.class_id) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Student class not found" 
+            });
+        }
+
+        // Create new fresh order
+        const newOrder = await prisma.order.create({
+            data: {
+                student_id: parseInt(studentId),
+                class_id: student.class_id,
+                process_status: 'in_progress',
+                version: 1,
+                total_amount: 0,
+                amount_paid: 0,
+                payment_status: 'unpaid',
+                status: 0
+            }
+        });
+
+        res.json({ 
+            success: true, 
+            message: "Fresh order created successfully. Start designing from scratch.",
+            data: { orderId: newOrder.id, version: 1 }
+        });
+
+    } catch (err) {
+        res.status(500).json({ 
+            success: false, 
+            error: err.message 
+        });
+    }
+};
+
+// Debug endpoint to check order history status
+export const debugOrderHistory = async (req, res) => {
+    try {
+        // Check if orderHistory model exists
+        if (!prisma.orderHistory) {
+            return res.json({
+                success: false,
+                message: "OrderHistory model not available in Prisma client",
+                suggestion: "Run: npx prisma db push"
+            });
+        }
+
+        // Get basic stats
+        const totalHistory = await prisma.orderHistory.count();
+        const recentHistory = await prisma.orderHistory.findMany({
+            take: 5,
+            orderBy: { created_at: 'desc' },
+            select: {
+                id: true,
+                order_id: true,
+                version: true,
+                action: true,
+                created_at: true
+            }
+        });
+
+        res.json({
+            success: true,
+            data: {
+                totalHistoryEntries: totalHistory,
+                recentEntries: recentHistory,
+                modelExists: true
+            }
+        });
+    } catch (err) {
+        res.json({
+            success: false,
+            error: err.message,
+            suggestion: "OrderHistory table might not exist. Run: npx prisma db push"
         });
     }
 };

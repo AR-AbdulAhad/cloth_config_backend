@@ -5,17 +5,17 @@ import fs from "fs";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { addSchool, listSchools, editSchool, removeSchool, getSchoolStats, getSchoolClasses } from "../controllers/schoolController.js";
 import { addClassRep, listClassReps, editClassRep, removeClassRep, adminResetPassword } from "../controllers/userController.js";
-import { addClass, editClass, removeClass, listAllClasses, toggleClassStatus, lockClass, unlockClass, updateClassProcessStatus } from "../controllers/classController.js";
+import { addClass, editClass, removeClass, listAllClasses, toggleClassStatus, lockClass, unlockClass, updateClassProcessStatus, setExpectedStudentCount, getStudentCount } from "../controllers/classController.js";
 import { listSchoolLogos, approveLogo, rejectLogo, adminUploadLogo, adminUploadBackDesign, adminDeleteLogo, adminPermanentDeleteLogo } from "../controllers/logoController.js";
 import { listBackDesigns, approveBackDesign, rejectBackDesign, getClassBackDesigns, uploadLibraryDesign, getLibraryDesignsByCountry, getStudyTripCountries, adminDeleteBackDesign, adminPermanentDeleteBackDesign, adminDeleteLibraryDesign, adminPermanentDeleteLibraryDesign } from "../controllers/designController.js";
 import { listCountries, addCountry, editCountry, removeCountry, permanentDeleteCountry } from "../controllers/countryController.js";
 import { listFonts, getActiveFonts, setNameListFont, addFont, removeFont, permanentDeleteFont } from "../controllers/fontController.js";
 import { generateProductionFiles, listProductionPackages, sendClassStatusEmail, sendFollowUpToClass } from "../controllers/productionController.js";
 import { assignClassRep } from "../controllers/classController.js";
-import { getDashboardStats, toggleEntityStatus, sendDeadlineReminder, testEmail, getClassStudents, getClassRep } from "../controllers/adminController.js";
+import { getDashboardStats, toggleEntityStatus, sendDeadlineReminder, testEmail, getClassStudents, getClassRep, getAllClassesWithStudentCount } from "../controllers/adminController.js";
 import { getSettings, updateSetting, updateSettings } from "../controllers/settingController.js";
 import { getClassNameList, approveNameList, rejectNameList, getAllNameList, unlockNameList } from "../controllers/nameListControllers.js";
-import { getAllOrders, getOrderDetails, getOrderHistory, unlockOrder, lockOrder } from "../controllers/orderController.js";
+import { getAllOrders, getOrderDetails, getOrderHistory, unlockOrder, lockOrder, debugOrderHistory } from "../controllers/orderController.js";
 
 const router = express.Router();
 const adminMiddleware = authMiddleware("admin");
@@ -63,8 +63,11 @@ router.delete("/class/:id/delete", adminMiddleware, removeClass);
 router.get("/class/:id/toggle-status", toggleClassStatus);
 router.post("/class/assign-rep", adminMiddleware, assignClassRep);
 router.post("/classes", adminMiddleware, listAllClasses);
+router.post("/classes-with-student-count", adminMiddleware, getAllClassesWithStudentCount);
 router.post("/class/:classId/students", adminMiddleware, getClassStudents);
 router.get("/class/:classId/rep", adminMiddleware, getClassRep);
+router.put("/class/:classId/expected-students", adminMiddleware, setExpectedStudentCount);
+router.get("/class/:classId/student-count", adminMiddleware, getStudentCount);
 
 // Logos
 router.post("/logos", adminMiddleware, listSchoolLogos);
@@ -118,6 +121,7 @@ router.get("/orders/:orderId/details", adminMiddleware, getOrderDetails);
 router.get("/orders/:orderId/history", adminMiddleware, getOrderHistory);
 router.put("/orders/:orderId/unlock", adminMiddleware, unlockOrder);
 router.put("/orders/:orderId/lock", adminMiddleware, lockOrder);
+router.get("/debug/order-history", adminMiddleware, debugOrderHistory);
 
 // Production Packages
 router.post("/generate-files/:classId", adminMiddleware, generateProductionFiles);

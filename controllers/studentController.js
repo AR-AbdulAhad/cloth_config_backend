@@ -103,7 +103,7 @@ export const getDashboardData = async (req, res) => {
                     process_status: 'approved',
                     status: { not: 2 },
                     ...(search && {
-                        file_path: { contains: search, mode: 'insensitive' }
+                        file_path: { contains: search }
                     })
                 },
                 skip,
@@ -116,7 +116,7 @@ export const getDashboardData = async (req, res) => {
                     process_status: 'approved',
                     status: { not: 2 },
                     ...(search && {
-                        file_path: { contains: search, mode: 'insensitive' }
+                        file_path: { contains: search }
                     })
                 }
             })
@@ -129,8 +129,8 @@ export const getDashboardData = async (req, res) => {
                     status: { not: 2 },
                     ...(search && {
                         OR: [
-                            { name: { contains: search, mode: 'insensitive' } },
-                            { file_path: { contains: search, mode: 'insensitive' } }
+                            { name: { contains: search } },
+                            { file_path: { contains: search } }
                         ]
                     })
                 },
@@ -144,8 +144,8 @@ export const getDashboardData = async (req, res) => {
                     status: { not: 2 },
                     ...(search && {
                         OR: [
-                            { name: { contains: search, mode: 'insensitive' } },
-                            { file_path: { contains: search, mode: 'insensitive' } }
+                            { name: { contains: search } },
+                            { file_path: { contains: search } }
                         ]
                     })
                 }
@@ -534,6 +534,29 @@ export const getMyOrder = async (req, res) => {
 export const getMyOrderHistory = async (req, res) => {
     try {
         const studentId = req.user.id;
+        
+        // Add pagination support
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 50; // Default to 50 entries
+        const skip = (page - 1) * limit;
+
+        // Check if orderHistory model exists in Prisma client
+        if (!prisma.orderHistory) {
+            return res.status(503).json({ 
+                success: false, 
+                message: "Order history feature not yet migrated. Please run: npx prisma migrate dev --name add_order_versioning",
+                data: []
+            });
+        }
+
+        // Get total count for pagination
+        const total = await prisma.orderHistory.count({
+            where: {
+                order: { student_id: parseInt(studentId) },
+                status: { not: 2 }
+            }
+        });
+
         const history = await prisma.orderHistory.findMany({
             where: {
                 order: { student_id: parseInt(studentId) },
@@ -546,12 +569,21 @@ export const getMyOrderHistory = async (req, res) => {
                     }
                 }
             },
-            orderBy: { created_at: 'desc' }
+            orderBy: { created_at: 'desc' },
+            skip,
+            take: limit
         });
 
         res.json({
             success: true,
-            data: history
+            data: history,
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit),
+                hasMore: skip + limit < total
+            }
         });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });

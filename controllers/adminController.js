@@ -311,3 +311,86 @@ export const getClassRep = async (req, res) => {
         res.status(500).json({ success: false, error: err.message });
     }
 };
+// Get all classes with expected students info for admin
+export const getAllClassesWithStudentCount = async (req, res) => {
+    try {
+        const { page = 1, limit = 10, search = '' } = req.body;
+        const pageNum = parseInt(page);
+        const limitNum = parseInt(limit);
+        const skip = (pageNum - 1) * limitNum;
+
+        const where = {
+            status: { not: 2 },
+            ...(search && { name: { contains: search } })
+        };
+
+        const [classes, total] = await Promise.all([
+            prisma.classes.findMany({
+                where,
+                include: { 
+                    school: { select: { name: true } },
+                    users: { 
+                        where: { role: 'class_representative', status: { not: 2 } },
+                        select: { name: true, email: true }
+                    }
+                },
+                skip, 
+                take: limitNum, 
+                orderBy: { created_at: 'desc' }
+            }),
+            prisma.classes.count({ where })
+        ]);
+
+        // Get student counts for each class
+        const classesWithCounts = await Promise.all(
+            classes.map(async (classItem) => {
+                const [registeredCount, studentsWithOrders] = await Promise.all([
+                    prisma.user.count({
+                        where: {
+                            class_id: classItem.id,
+                            role: 'student',
+                            status: { not: 2 }
+                        }
+                    }),
+                    prisma.order.count({
+                        where: {
+                            class_id: classItem.id,
+                            status: { not: 2 }
+                        },
+                        distinct: ['student_id']
+                    })
+                ]);
+
+                return {
+                    id: classItem.id,
+                    name: classItem.name,
+                    graduation_year: classItem.graduation_year,
+                    school_name: classItem.school.name,
+                    class_rep: classItem.users[0] ? classItem.users[0].name : 'Not Assigned',
+                    class_rep_email: classItem.users[0] ? classItem.users[0].email : null,
+                    expected_students: classItem.expected_students || 0,
+                    registered_students: registeredCount,
+                    students_with_orders: studentsWithOrders,
+                    completion_percentage: classItem.expected_students > 0 
+                        ? Math.round((registeredCount / classItem.expected_students) * 100) 
+                        : 0,
+                    order_locked: classItem.order_locked,
+                    process_status: classItem.process_status
+                };
+            })
+        );
+
+        res.json({ 
+            success: true, 
+            data: classesWithCounts,
+            pagination: { 
+                total, 
+                page: pageNum, 
+                limit: limitNum, 
+                totalPages: Math.ceil(total / limitNum) 
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
