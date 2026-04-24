@@ -32,7 +32,7 @@ app.set("io", io);
 
 // ✅ Socket.io Connection Logic
 io.on("connection", (socket) => {
-    console.log(`🔌 Client connected: ${socket.id}`);
+    console.log(`🔌 Client connected: ${socket.id}`);       
 
     socket.on("join", (roomId) => {
         socket.join(roomId);
@@ -84,8 +84,8 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/class-rep", classRepRoutes);
 app.use("/api/student", studentRoutes);
 app.use("/api/payment", paymentRoutes);
-app.use("/api/campaign", campaignRoutes);
-app.use("/api/template", templateRoutes);
+app.use("/api/campaigns", campaignRoutes);
+app.use("/api/templates", templateRoutes);
 
 app.get("/", (req, res) => {
     res.send("StudentLife Backend API v1.5 with Realtime Sockets is running");

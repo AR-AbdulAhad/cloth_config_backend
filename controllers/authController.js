@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import prisma from "../config/prisma.js";
+import { triggerAutomatedEmail } from "../utils/emailService.js";
 
 // Generic Login for ALL users (Admin, Class Rep, Student)
 export const login = async (req, res) => {
@@ -160,6 +161,15 @@ export const register = async (req, res) => {
             }
         });
 
+        // Trigger automated welcome email (fire-and-forget — errors logged internally)
+        triggerAutomatedEmail('user_registration', {
+            name: student.name,
+            email: student.email,
+            role: 'student',
+            school: student.school_id?.toString() || '',
+            class: student.class_id?.toString() || ''
+        }).catch(err => console.error('[AutoEmail] register trigger failed:', err.message));
+
         res.status(201).json({
             success: true,
             message: "Student registered successfully",
@@ -265,6 +275,7 @@ export const getSidebarMenus = async (req, res) => {
                     module: 'Marketing',
                     children: [
                         { title: 'Email Campaigns', path: '/campaigns', icon: 'EmailIcon' },
+                        // { title: 'Automated Email', path: '/automated-emails', icon: 'EmailIcon' },
                     ]
                 },
                 {

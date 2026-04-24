@@ -293,6 +293,69 @@ export const sendBackDesignUploadNotificationEmail = async ({ adminEmail, design
 // ─────────────────────────────────────────────
 // Helper function to get admin notification emails
 // ─────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// AUTOMATED EMAIL TRIGGER
+// Call this whenever an automation event happens
+// e.g. triggerAutomatedEmail('user_registration', { name, email, school, class })
+// ─────────────────────────────────────────────
+const sendTemplateEmail = async (template, userData, automationType) => {
+    if (!template.html_body) {
+        console.warn(`[AutoEmail] Template #${template.id} has empty html_body — skipping`);
+        return;
+    }
+
+    let html = template.html_body;
+    let subject = template.subject;
+
+    // Replace {{variables}} with actual user data
+    Object.entries(userData).forEach(([key, value]) => {
+        const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+        html    = html.replace(regex, value ?? '');
+        subject = subject.replace(regex, value ?? '');
+    });
+
+    await sendEmail(userData.email, subject, html);
+    console.log(`[AutoEmail] Sent [${automationType}] to ${userData.email} (template #${template.id})`);
+};
+
+export const triggerAutomatedEmail = async (automationType, userData) => {
+    try {
+        console.log(`[AutoEmail] Trigger: ${automationType} → ${userData.email}`);
+
+        const templates = await prisma.emailTemplate.findMany({
+            where: {
+                automation_type: automationType,
+                is_automated: true,
+                status: 0  // active only
+            }
+        });
+
+        if (!templates.length) {
+            console.log(`[AutoEmail] No active template found for: ${automationType}`);
+            return;
+        }
+
+        console.log(`[AutoEmail] Found ${templates.length} template(s) for: ${automationType}`);
+
+        for (const template of templates) {
+            const delayMs = (template.delay_hours || 0) * 60 * 60 * 1000;
+
+            if (delayMs > 0) {
+                console.log(`[AutoEmail] Template #${template.id} delayed by ${template.delay_hours}h`);
+                setTimeout(() => {
+                    sendTemplateEmail(template, userData, automationType)
+                        .catch(err => console.error(`[AutoEmail] Delayed send failed:`, err.message));
+                }, delayMs);
+            } else {
+                await sendTemplateEmail(template, userData, automationType);
+            }
+        }
+    } catch (error) {
+        console.error(`[AutoEmail] triggerAutomatedEmail failed [${automationType}]:`, error.message);
+        throw error;
+    }
+};
+
 export const getAdminNotificationEmails = async () => {
     try {
         // First try to get from environment variable

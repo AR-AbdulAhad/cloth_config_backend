@@ -339,6 +339,14 @@ model EmailTemplate {
   created_at  DateTime   @default(now())
   updated_at  DateTime   @default(now()) @updatedAt
 
+  // NEW: Automation fields
+  is_automated     Boolean  @default(false)
+  automation_type  String?  @db.VarChar(50)
+  trigger_events   String?  @db.Text  // JSON string
+  target_audience  String?  @db.Text  // JSON string  
+  delay_hours      Int?     @default(0)
+  design           Json?    // Email editor design JSON
+
   campaigns   Campaign[]
 
   @@map("email_templates")
