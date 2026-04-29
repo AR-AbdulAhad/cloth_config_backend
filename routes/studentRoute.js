@@ -1,10 +1,11 @@
 import express from "express";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { getConfiguratorData, resetOrder, createFreshOrder } from "../controllers/orderController.js";
-import { placeOrder, getMyOrder, getMyOrderHistory, deleteHistory, getMyProfile, updateMyProfile } from "../controllers/studentController.js";
+import { placeOrder, getMyOrder, getMyOrderHistory, deleteHistory, getMyProfile, updateMyProfile, getClassesBySchool } from "../controllers/studentController.js";
 import { listSchoolLogos } from "../controllers/logoController.js";
 import { listBackDesigns, getConfiguratorBackDesign, listMyBackDesigns, getMyClassBackDesign } from "../controllers/designController.js";
 import { getSettings } from "../controllers/settingController.js";
+import { listSchools } from "../controllers/schoolController.js";
 
 const router = express.Router();
 const studentAuth = authMiddleware("student");
@@ -22,6 +23,8 @@ router.post("/logos", studentAuth, listSchoolLogos);
 router.post("/class-back-designs", studentAuth, listBackDesigns);
 router.get("/configurator-back-design", studentAuth, getConfiguratorBackDesign);
 router.get("/settings", studentAuth, getSettings);
+router.post("/schools", studentAuth, listSchools);
+router.post("/schools/:schoolId/classes", studentAuth, getClassesBySchool);
 
 // New routes for order reset functionality
 router.post("/reset-order/:orderId", studentAuth, resetOrder);

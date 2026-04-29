@@ -669,3 +669,32 @@ export const updateMyProfile = async (req, res) => {
         res.status(500).json({ success: false, error: err.message });
     }
 };
+
+// Get classes by school ID (for contact form / public use)
+export const getClassesBySchool = async (req, res) => {
+    try {
+        const { schoolId } = req.params;
+
+        if (!schoolId || isNaN(parseInt(schoolId))) {
+            return res.status(400).json({ success: false, message: "Valid schoolId is required" });
+        }
+
+        const classes = await prisma.classes.findMany({
+            where: {
+                school_id: parseInt(schoolId),
+                status: { not: 2 }
+            },
+            select: {
+                id: true,
+                name: true,
+                graduation_year: true,
+                process_status: true
+            },
+            orderBy: { name: 'asc' }
+        });
+
+        res.json({ success: true, data: classes });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
