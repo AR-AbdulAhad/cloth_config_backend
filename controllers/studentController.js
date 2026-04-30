@@ -698,3 +698,45 @@ export const getClassesBySchool = async (req, res) => {
         res.status(500).json({ success: false, error: err.message });
     }
 };
+
+// Check if student's class is signed up (has class_id assigned)
+// Used for "Upload own design" button — if no class, show message
+export const checkClassSignup = async (req, res) => {
+    try {
+        const student = await prisma.user.findUnique({
+            where: { id: req.user.id },
+            select: {
+                class_id: true,
+                class: {
+                    select: {
+                        id: true,
+                        name: true,
+                        process_status: true,
+                        school: { select: { id: true, name: true } }
+                    }
+                }
+            }
+        });
+
+        if (!student?.class_id || !student?.class) {
+            return res.json({
+                success: true,
+                signed_up: false,
+                message: "Your class needs to be signed up before you can add your own design."
+            });
+        }
+
+        res.json({
+            success: true,
+            signed_up: true,
+            data: {
+                class_id: student.class_id,
+                class_name: student.class.name,
+                process_status: student.class.process_status,
+                school: student.class.school
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
