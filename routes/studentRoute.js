@@ -23,7 +23,7 @@ router.post("/logos", studentAuth, listSchoolLogos);
 router.post("/class-back-designs", studentAuth, listBackDesigns);
 router.get("/configurator-back-design", studentAuth, getConfiguratorBackDesign);
 router.get("/settings", studentAuth, getSettings);
-router.get("/schools", studentAuth, listSchools);
+router.post("/schools", studentAuth, listSchools);
 router.get("/schools/:schoolId/classes", studentAuth, getClassesBySchool);
 
 // Library designs — browse by country/nationality
