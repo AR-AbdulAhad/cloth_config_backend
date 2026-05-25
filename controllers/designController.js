@@ -326,7 +326,7 @@ export const getStudyTripCountries = async (req, res) => {
         const countries = await prisma.country.findMany({
             where: { status: 0 },
             orderBy: { name: 'asc' },
-            select: { id: true, name: true, code: true }
+            select: { id: true, name: true, code: true,status: true }
         });
         res.json({ success: true, data: countries });
     } catch (err) {

@@ -8,7 +8,7 @@ import { addClassRep, listClassReps, editClassRep, removeClassRep, adminResetPas
 import { addClass, editClass, removeClass, listAllClasses, toggleClassStatus, lockClass, unlockClass, updateClassProcessStatus, setExpectedStudentCount, getStudentCount } from "../controllers/classController.js";
 import { listSchoolLogos, approveLogo, rejectLogo, adminUploadLogo, adminUploadBackDesign, adminDeleteLogo, adminPermanentDeleteLogo } from "../controllers/logoController.js";
 import { listBackDesigns, approveBackDesign, rejectBackDesign, getClassBackDesigns, uploadLibraryDesign, getLibraryDesignsByCountry, getStudyTripCountries, adminDeleteBackDesign, adminPermanentDeleteBackDesign, adminDeleteLibraryDesign, adminPermanentDeleteLibraryDesign } from "../controllers/designController.js";
-import { listCountries, addCountry, editCountry, removeCountry, permanentDeleteCountry } from "../controllers/countryController.js";
+import { listCountries, addCountry, editCountry, removeCountry, permanentDeleteCountry, toggleCountryStatus } from "../controllers/countryController.js";
 import { listFonts, getActiveFonts, setNameListFont, addFont, removeFont, permanentDeleteFont } from "../controllers/fontController.js";
 import { generateProductionFiles, listProductionPackages, sendClassStatusEmail, sendFollowUpToClass } from "../controllers/productionController.js";
 import { assignClassRep } from "../controllers/classController.js";
@@ -83,6 +83,7 @@ router.post("/country/create", adminMiddleware, addCountry);
 router.put("/country/:id/update", adminMiddleware, editCountry);
 router.delete("/country/:id/delete", adminMiddleware, removeCountry);
 router.delete("/country/:id/permanent-delete", adminMiddleware, permanentDeleteCountry);
+router.put("/country/:id/toggle-status", adminMiddleware, toggleCountryStatus);
 
 // Fonts
 router.post("/fonts", adminMiddleware, listFonts);
