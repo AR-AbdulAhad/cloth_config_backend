@@ -15,7 +15,7 @@ const transporter = nodemailer.createTransport({
 export const sendEmail = async (to, subject, html, fromAddress = null) => {
     try {
         // Use no-reply address as default sender for clothing-related emails
-        const senderEmail = process.env.SMTP_USER; // Gmail authenticated account
+        const senderEmail = "StudentLife"; // Gmail authenticated account
         const noReplyEmail = process.env.SMTP_NOREPLY || 'noreply@studentlife.dk';
         
         // For notification emails, use noreply as display name

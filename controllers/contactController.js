@@ -421,7 +421,7 @@ Hvis det haster, kontakt os på <a href="mailto:info@studentlife.dk">info@studen
 </body>
 </html>`;
 
-        const infoEmail = process.env.SMTP_INFO_EMAIL || process.env.SMTP_USER;
+        const infoEmail = process.env.SMTP_INFO_EMAIL || "StudentLife";
 
         await Promise.all([
             sendEmail(infoEmail, `Ny forespørgsel fra ${name}`, infoHtml),
