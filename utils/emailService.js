@@ -17,7 +17,7 @@ export const sendEmail = async (to, subject, html, fromAddress = null) => {
         // Use no-reply address as default sender for clothing-related emails
         const senderEmail = "StudentLife"; // Gmail authenticated account
         const noReplyEmail = process.env.SMTP_NOREPLY || 'noreply@studentlife.dk';
-        
+
         // For notification emails, use noreply as display name
         const isNotificationEmail = subject.includes('New Logo Upload') || subject.includes('New Back Design Upload');
         const displayName = isNotificationEmail ? 'StudentLife Notifications' : 'StudentLife';
@@ -85,30 +85,41 @@ export const sendOrderConfirmationEmail = async ({ email, studentName, orderId, 
 
     const html = `
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:20px;">
-        <h2 style="color:#006d75;">Order Confirmation 🎉</h2>
-        <p>Hi <strong>${studentName}</strong>, your order has been received!</p>
-        <p><strong>Order ID:</strong> #${orderId}</p>
+        
+        <h2 style="color:#006d75;">Ordrebekræftelse 🎉</h2>
+        <p>Hej <strong>${studentName}</strong>, din ordre er modtaget!</p>
+        <p><strong>Ordre ID:</strong> #${orderId}</p>
 
-        <h3 style="color:#006d75;">Your Garments</h3>
+        <h3 style="color:#006d75;">Dine produkter</h3>
+
         <table style="width:100%;border-collapse:collapse;">
             <thead>
                 <tr style="background:#006d75;color:#fff;">
-                    <th style="padding:8px;">Product</th>
-                    <th style="padding:8px;">Color</th>
-                    <th style="padding:8px;">Size</th>
+                    <th style="padding:8px;">Produkt</th>
+                    <th style="padding:8px;">Farve</th>
+                    <th style="padding:8px;">Størrelse</th>
                 </tr>
             </thead>
             <tbody>${garmentRows}</tbody>
         </table>
 
-        <p style="margin-top:16px;"><strong>Change Deadline:</strong> ${deadline}</p>
-        <p>You can edit your design, logo selection, and delivery details until the deadline.</p>
+        <p style="margin-top:16px;">
+            <strong>Ændringsfrist:</strong> ${deadline}
+        </p>
+
+        <p>
+            Du kan redigere dit design, logo og leveringsoplysninger indtil fristen.
+        </p>
 
         ${getEducationExtra(educationType)}
 
         <hr/>
-        <p style="font-size:12px;color:gray;">StudentLife – studentlife.dk</p>
-    </div>`;
+
+        <p style="font-size:12px;color:gray;">
+            StudentLife – studentlife.dk
+        </p>
+    </div>
+`;
 
     return sendEmail(email, `Order Confirmation – #${orderId}`, html, process.env.SMTP_NOREPLY);
 };
@@ -122,18 +133,35 @@ export const sendChangeDeadlineEmail = async ({ email, studentName, orderId, cha
 
     const html = `
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:20px;">
-        <h2 style="color:#e67e22;">⏰ Change Deadline Reminder</h2>
-        <p>Hi <strong>${studentName}</strong>,</p>
-        <p>This is a reminder that the deadline to make changes to your order <strong>#${orderId}</strong> is:</p>
+        
+        <h2 style="color:#e67e22;">⏰ Påmindelse om ændringsfrist</h2>
+
+        <p>Hej <strong>${studentName}</strong>,</p>
+
+        <p>
+            Dette er en påmindelse om, at fristen for at ændre din ordre 
+            <strong>#${orderId}</strong> er:
+        </p>
+
         <h3 style="color:#e67e22;">${deadline}</h3>
-        <p>After this date, your order will be locked and sent to production.</p>
-        <p>Log in now to review or update your design, logo, or delivery details.</p>
+
+        <p>
+            Efter denne dato bliver din ordre låst og sendt til produktion.
+        </p>
+
+        <p>
+            Log ind nu for at gennemgå eller opdatere dit design, logo eller leveringsoplysninger.
+        </p>
 
         ${getEducationExtra(educationType)}
 
         <hr/>
-        <p style="font-size:12px;color:gray;">StudentLife – studentlife.dk</p>
-    </div>`;
+
+        <p style="font-size:12px;color:gray;">
+            StudentLife – studentlife.dk
+        </p>
+    </div>
+`;
 
     return sendEmail(email, `Reminder: Order Change Deadline – #${orderId}`, html, process.env.SMTP_NOREPLY);
 };
@@ -153,16 +181,26 @@ export const sendStatusEmail = async ({ email, studentName, orderId, status, tra
 
     const html = `
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:20px;">
-        <h2 style="color:${info.color};">Order Status: ${info.label}</h2>
-        <p>Hi <strong>${studentName}</strong>,</p>
-        <p>Update for your order <strong>#${orderId}</strong>:</p>
-        <p style="font-size:16px;">${info.msg}</p>
+        
+        <h2 style="color:${info.color};">Ordrestatus: ${info.label}</h2>
+
+        <p>Hej <strong>${studentName}</strong>,</p>
+
+        <p>Opdatering på din ordre <strong>#${orderId}</strong>:</p>
+
+        <p style="font-size:16px;">
+            ${info.msg}
+        </p>
 
         ${getEducationExtra(educationType)}
 
         <hr/>
-        <p style="font-size:12px;color:gray;">StudentLife – studentlife.dk</p>
-    </div>`;
+
+        <p style="font-size:12px;color:gray;">
+            StudentLife – studentlife.dk
+        </p>
+    </div>
+`;
 
     return sendEmail(email, `Order Update: ${info.label} – #${orderId}`, html, process.env.SMTP_NOREPLY);
 };
@@ -174,92 +212,105 @@ export const sendStatusEmail = async ({ email, studentName, orderId, status, tra
 export const sendFollowUpEmail = async ({ email, studentName, educationType }) => {
     const html = `
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:20px;">
-        <h2 style="color:#006d75;">Thank You from StudentLife 🎓</h2>
-        <p>Hi <strong>${studentName}</strong>, we hope you love your garment!</p>
+        
+        <h2 style="color:#006d75;">Tak fra StudentLife 🎓</h2>
 
-        <h3 style="color:#006d75;">Garment Care Instructions</h3>
+        <p>Hej <strong>${studentName}</strong>, vi håber, du er glad for dit produkt!</p>
+
+        <h3 style="color:#006d75;">Vaskeanvisninger</h3>
         <ul>
-            <li>Wash inside out at 30°C</li>
-            <li>Do not tumble dry</li>
-            <li>Do not iron directly on print</li>
-            <li>Do not dry clean</li>
+            <li>Vask med vrangen ud ved 30°C</li>
+            <li>Må ikke tørretumbles</li>
+            <li>Stryg ikke direkte på tryk</li>
+            <li>Må ikke renses kemisk</li>
         </ul>
 
-        <h3 style="color:#006d75;">Graduation Caps 🎓</h3>
-        <p>Complete your graduation look with a StudentLife graduation cap. Personalized, high quality, and delivered fast.</p>
+        <h3 style="color:#006d75;">Studenterhuer 🎓</h3>
+        <p>
+            Fuldend dit studenterlook med en personlig StudentLife studenterhue. 
+            Høj kvalitet, specialdesignet og hurtig levering.
+        </p>
+
         <a href="https://studentlife.dk/caps" 
            style="display:inline-block;padding:10px 20px;background:#006d75;color:#fff;text-decoration:none;border-radius:5px;">
-            Explore Graduation Caps
+            Udforsk studenterhuer
         </a>
 
         ${getEducationExtra(educationType)}
 
         <hr/>
-        <p style="font-size:12px;color:gray;">StudentLife – studentlife.dk</p>
+
+        <p style="font-size:12px;color:gray;">
+            StudentLife – studentlife.dk
+        </p>
     </div>`;
 
-    return sendEmail(email, 'Your StudentLife Garment – Care Guide & More', html, process.env.SMTP_NOREPLY);
+    return sendEmail(email, 'Tak for din StudentLife ordre – Plejevejledning & mere', html, process.env.SMTP_NOREPLY);
 };
 
-// ─────────────────────────────────────────────
-// Existing: Class Rep Welcome Email
-// ─────────────────────────────────────────────
 export const sendClassRepWelcomeEmail = async (email, joinLink) => {
     const html = `
     <div style="font-family:Arial,sans-serif;padding:20px;">
-        <h2 style="color:#006d75;">Welcome to StudentLife 🎉</h2>
-        <p>You have been registered as a <strong>Class Representative</strong>.</p>
+        <h2 style="color:#006d75;">Velkommen til StudentLife 🎉</h2>
+
+        <p>Du er blevet registreret som <strong>klasse repræsentant</strong>.</p>
+
         <p><strong>Email:</strong> ${email}</p>
-        <p>Click below to login:</p>
+
+        <p>Klik nedenfor for at logge ind:</p>
+
         <a href="${joinLink}" style="display:inline-block;padding:10px 20px;background:#006d75;color:#fff;text-decoration:none;border-radius:5px;">
-            Login Now
+            Log ind nu
         </a>
-        <p style="margin-top:12px;">Or copy: ${joinLink}</p>
+
+        <p style="margin-top:12px;">Eller kopiér linket: ${joinLink}</p>
+
         <hr/>
-        <p style="font-size:12px;color:gray;">Please change your password after first login.</p>
+
+        <p style="font-size:12px;color:gray;">
+            Husk at ændre din adgangskode efter første login.
+        </p>
     </div>`;
 
-    return sendEmail(email, 'Class Representative Account Created', html);
+    return sendEmail(email, 'Klasse repræsentant oprettet', html);
 };
-// ─────────────────────────────────────────────
-// EMAIL: New Logo Upload Notification (Admin)
-// Trigger: when class rep uploads a new logo
-// ─────────────────────────────────────────────
-export const sendLogoUploadNotificationEmail = async ({ adminEmail, logoName, schoolName, classRepName, classRepEmail, logoId }) => {
+
+export const sendLogoUploadNotificationEmail = async ({
+    adminEmail,
+    logoName,
+    schoolName,
+    classRepName,
+    classRepEmail,
+    logoId
+}) => {
     const html = `
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:20px;">
-        <h2 style="color:#e67e22;">New Logo Upload Notification</h2>
-        <p>A new logo has been uploaded and requires review.</p>
-        
+        <h2 style="color:#e67e22;">Ny logo upload-notifikation</h2>
+
+        <p>Et nyt logo er blevet uploadet og kræver gennemgang.</p>
+
         <div style="background:#f8f9fa;padding:15px;border-radius:5px;margin:15px 0;">
-            <h3 style="color:#006d75;margin-top:0;">Logo Details</h3>
-            <p><strong>Logo Name:</strong> ${logoName}</p>
-            <p><strong>School:</strong> ${schoolName}</p>
-            <p><strong>Status:</strong> Pending Review</p>
+            <h3 style="color:#006d75;margin-top:0;">Logodetaljer</h3>
+
+            <p><strong>Logo navn:</strong> ${logoName}</p>
+            <p><strong>Skole:</strong> ${schoolName}</p>
+            <p><strong>Status:</strong> Afventer gennemgang</p>
         </div>
 
-        
-
         <hr style="margin:20px 0;"/>
-        <p style="font-size:12px;color:gray;">StudentLife Admin Notification System</p>
+
+        <p style="font-size:12px;color:gray;">
+            StudentLife administrationsnotifikation
+        </p>
     </div>`;
 
-    return sendEmail(adminEmail, `New Logo Upload: ${logoName} - ${schoolName}`, html);
+    return sendEmail(
+        adminEmail,
+        `Nyt logo upload: ${logoName} - ${schoolName}`,
+        html
+    );
 };
-{/*
-    <p><strong>Uploaded by:</strong> ${classRepName} (${classRepEmail})</p>
-<p><strong>Logo ID:</strong> #${logoId}</p>
 
-<p>Please review and approve/reject this logo in the admin panel.</p>
-        
-        <a href="${process.env.LIVE_FRONTEND_URL}/admin/logos" 
-           style="display:inline-block;padding:12px 24px;background:#006d75;color:#fff;text-decoration:none;border-radius:5px;margin:10px 0;">
-            Review Logo
-        </a> */}
-// ─────────────────────────────────────────────
-// EMAIL: New Back Design Upload Notification (Admin)
-// Trigger: when class rep uploads a new back design
-// ─────────────────────────────────────────────
 export const sendBackDesignUploadNotificationEmail = async ({ adminEmail, designName, className, schoolName, classRepName, classRepEmail, designId }) => {
     const html = `
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:20px;">
@@ -283,21 +334,7 @@ export const sendBackDesignUploadNotificationEmail = async ({ adminEmail, design
 
     return sendEmail(adminEmail, `New Back Design Upload: ${designName} - ${className}`, html);
 };
-//  <p><strong>Design ID:</strong> #${designId}</p>
-//   <p>Please review and approve/reject this back design in the admin panel.</p>
-//  <p><strong>Uploaded by:</strong> ${classRepName} (${classRepEmail})</p> 
-//         <a href="${process.env.LIVE_FRONTEND_URL}/admin/back-designs" 
-//            style="display:inline-block;padding:12px 24px;background:#006d75;color:#fff;text-decoration:none;border-radius:5px;margin:10px 0;">
-//             Review Design
-//         </a>
-// ─────────────────────────────────────────────
-// Helper function to get admin notification emails
-// ─────────────────────────────────────────────
-// ─────────────────────────────────────────────
-// AUTOMATED EMAIL TRIGGER
-// Call this whenever an automation event happens
-// e.g. triggerAutomatedEmail('user_registration', { name, email, school, class })
-// ─────────────────────────────────────────────
+
 const sendTemplateEmail = async (template, userData, automationType) => {
     if (!template.html_body) {
         console.warn(`[AutoEmail] Template #${template.id} has empty html_body — skipping`);
@@ -310,7 +347,7 @@ const sendTemplateEmail = async (template, userData, automationType) => {
     // Replace {{variables}} with actual user data
     Object.entries(userData).forEach(([key, value]) => {
         const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
-        html    = html.replace(regex, value ?? '');
+        html = html.replace(regex, value ?? '');
         subject = subject.replace(regex, value ?? '');
     });
 
