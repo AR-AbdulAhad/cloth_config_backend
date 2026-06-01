@@ -26,7 +26,7 @@ const io = new Server(httpServer, {
     }
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT;
 
 // ✅ Attach io to app for access in routes
 app.set("io", io);
