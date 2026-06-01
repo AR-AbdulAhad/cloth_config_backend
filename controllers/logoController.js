@@ -188,7 +188,7 @@ export const adminUploadLogo = async (req, res) => {
 // Admin: upload back design for a class — auto approved
 export const adminUploadBackDesign = async (req, res) => {
     try {
-        const { name, class_id, country_id } = req.body;
+        const { name, class_id, country_id, designColor } = req.body;
 
         if (!req.file) return res.status(400).json({ success: false, message: "No file uploaded" });
 
@@ -198,6 +198,7 @@ export const adminUploadBackDesign = async (req, res) => {
                 file_path: req.file.path,
                 class_id: class_id ? parseInt(class_id) : null,
                 country_id: country_id ? parseInt(country_id) : null,
+                designColor: designColor || null,
                 is_library: !class_id, // if no class_id, it's a library design
                 process_status: 'approved', // admin upload = auto approved
                 status: 0
