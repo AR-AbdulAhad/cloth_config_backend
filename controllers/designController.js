@@ -36,10 +36,10 @@ export const uploadClassBackDesign = async (req, res) => {
         const isConfigurator = isFromConfigurator === 'true' || isFromConfigurator === true;
 
         // Validate designColor if provided
-        if (designColor && !['white', 'black'].includes(designColor.toLowerCase())) {
+        if (designColor && !['white', 'black', 'normal'].includes(designColor.toLowerCase())) {
             return res.status(400).json({
                 success: false,
-                message: "Invalid design color. Only 'white' or 'black' are allowed."
+                message: "Invalid design color. Only 'white', 'black', or 'normal' are allowed."
             });
         }
 
