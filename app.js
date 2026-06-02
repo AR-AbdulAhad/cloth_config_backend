@@ -33,19 +33,14 @@ app.set("io", io);
 
 // ✅ Socket.io Connection Logic
 io.on("connection", (socket) => {
-    console.log(`🔌 Client connected: ${socket.id}`);       
-
     socket.on("join", (roomId) => {
         socket.join(roomId);
-        console.log(`👤 Client joined room: ${roomId}`);
     });
 
     socket.on("disconnect", () => {
-        console.log(`🔌 Client disconnected: ${socket.id}`);
     });
 });
 
-// ✅ Enable CORS globally
 app.use(cors({
     origin: "*",
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -109,10 +104,8 @@ app.use((err, req, res, next) => {
 
 app.use((req, res, next) => {
     const time = new Date().toISOString();
-    console.log(`[${time}] ${req.method} ${req.originalUrl}`);
     next();
 });
 
 httpServer.listen(PORT, () => {
-    console.log(`Server is running with Sockets on port ${PORT}`);
 });

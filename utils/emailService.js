@@ -37,22 +37,7 @@ export const sendEmail = async (to, subject, html, fromAddress = null) => {
             }
         };
 
-        // Debug: Log email content
-        console.log('=== SENDMAIL DEBUG ===');
-        console.log('To:', to);
-        console.log('Subject:', subject);
-        console.log('From:', mailOptions.from);
-        console.log('Reply-To:', mailOptions.replyTo);
-        console.log('Is Notification:', isNotificationEmail);
-        console.log('HTML type:', typeof html);
-        console.log('HTML length:', html?.length);
-        console.log('HTML preview:', html?.substring(0, 300));
-        console.log('Contains img tags:', html?.includes('<img'));
-        console.log('Contains escaped HTML:', html?.includes('&lt;'));
-        console.log('=====================');
-
         const info = await transporter.sendMail(mailOptions);
-        console.log("Email sent:", info.messageId, "Reply-To:", mailOptions.replyTo || "None");
         return info;
     } catch (error) {
         console.error("Email send failed:", error.message, "| To:", to, "| Subject:", subject);
@@ -314,7 +299,7 @@ export const sendLogoUploadNotificationEmail = async ({
 export const sendBackDesignUploadNotificationEmail = async ({ adminEmail, designName, className, schoolName, classRepName, classRepEmail, designId }) => {
     const html = `
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:20px;">
-        <h2 style="color:#9b59b6;">New Back Design Upload Notification</h2>
+        <h2 >New Back Design Upload Notification</h2>
         <p>A new back design has been uploaded and requires review.</p>
         
         <div style="background:#f8f9fa;padding:15px;border-radius:5px;margin:15px 0;">
@@ -352,12 +337,10 @@ const sendTemplateEmail = async (template, userData, automationType) => {
     });
 
     await sendEmail(userData.email, subject, html);
-    console.log(`[AutoEmail] Sent [${automationType}] to ${userData.email} (template #${template.id})`);
 };
 
 export const triggerAutomatedEmail = async (automationType, userData) => {
     try {
-        console.log(`[AutoEmail] Trigger: ${automationType} → ${userData.email}`);
 
         const templates = await prisma.emailTemplate.findMany({
             where: {
@@ -368,17 +351,14 @@ export const triggerAutomatedEmail = async (automationType, userData) => {
         });
 
         if (!templates.length) {
-            console.log(`[AutoEmail] No active template found for: ${automationType}`);
             return;
         }
 
-        console.log(`[AutoEmail] Found ${templates.length} template(s) for: ${automationType}`);
 
         for (const template of templates) {
             const delayMs = (template.delay_hours || 0) * 60 * 60 * 1000;
 
             if (delayMs > 0) {
-                console.log(`[AutoEmail] Template #${template.id} delayed by ${template.delay_hours}h`);
                 setTimeout(() => {
                     sendTemplateEmail(template, userData, automationType)
                         .catch(err => console.error(`[AutoEmail] Delayed send failed:`, err.message));
@@ -396,8 +376,8 @@ export const triggerAutomatedEmail = async (automationType, userData) => {
 export const getAdminNotificationEmails = async () => {
     try {
         // First try to get from environment variable
-        if (process.env.ADMIN_NOTIFICATION_EMAILS) {
-            const envEmails = process.env.ADMIN_NOTIFICATION_EMAILS
+        if (process.env.SMTP_INFO_EMAIL) {
+            const envEmails = process.env.SMTP_INFO_EMAIL
                 .split(',')
                 .map(email => email.trim())
                 .filter(email => email.length > 0);

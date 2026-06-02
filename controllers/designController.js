@@ -104,7 +104,6 @@ export const uploadClassBackDesign = async (req, res) => {
             );
 
             await Promise.allSettled(notificationPromises);
-            console.log(`Back design upload notification sent to ${adminEmails.length} admin(s)`);
         } catch (emailError) {
             console.error('Failed to send back design upload notification:', emailError.message);
             // Don't fail the upload if email fails

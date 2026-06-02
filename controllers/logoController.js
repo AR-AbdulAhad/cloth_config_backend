@@ -52,7 +52,6 @@ export const uploadSchoolLogo = async (req, res) => {
             );
 
             await Promise.allSettled(notificationPromises);
-            console.log(`Logo upload notification sent to ${adminEmails.length} admin(s)`);
         } catch (emailError) {
             console.error('Failed to send logo upload notification:', emailError.message);
             // Don't fail the upload if email fails

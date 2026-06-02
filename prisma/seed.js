@@ -60,28 +60,6 @@ const FONTS = [
 ];
 
 async function main() {
-  // Seed admin
-  // const hashedPassword = await bcrypt.hash('123123', 10);
-  // const admin = await prisma.user.upsert({
-  //     where: { email: 'admin@admin.com' },
-  //     update: {},
-  //     create: { name: 'Admin', email: 'admin@admin.com', password: hashedPassword, role: 'admin' },
-  // });
-  // console.log('Admin seeded:', admin.email);
-
-  // Seed countries
-  // let countriesCreated = 0;
-  // for (const country of COUNTRIES) {
-  //     await prisma.country.upsert({
-  //         where: { name: country.name },
-  //         update: {},
-  //         create: { name: country.name, code: country.code, status: 0 }
-  //     });
-  //     countriesCreated++;
-  // }
-  // console.log(`Countries seeded: ${countriesCreated}`);
-
-  // Seed fonts
   let fontsCreated = 0;
   for (const font of FONTS) {
     await prisma.font.upsert({
@@ -91,8 +69,6 @@ async function main() {
     });
     fontsCreated++;
   }
-  console.log(`Fonts seeded: ${fontsCreated}`);
-  // Seed default settings
   const defaultSettings = [
     { key: 'handling_fee', value: '500', description: 'Base handling fee for the class (DKK)' },
     { key: 'handling_fee_enabled', value: 'true', description: 'Enable or disable handling fee' },
@@ -110,7 +86,6 @@ async function main() {
   for (const s of defaultSettings) {
     await prisma.setting.upsert({ where: { key: s.key }, update: {}, create: s });
   }
-  console.log('Settings seeded');
 
   // Seed email templates
   const EMAIL_TEMPLATES = [
@@ -230,7 +205,6 @@ async function main() {
       create: t
     });
   }
-  console.log(`Email templates seeded: ${EMAIL_TEMPLATES.length}`);
 
   process.exit(0);
 }

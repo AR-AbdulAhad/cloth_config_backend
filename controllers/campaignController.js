@@ -45,7 +45,7 @@ export const createCampaign = async (req, res) => {
 // List all campaigns
 export const listCampaigns = async (req, res) => {
     try {
-        const campaigns = await prisma.campaign.findMany({ 
+        const campaigns = await prisma.campaign.findMany({
             orderBy: { created_at: 'desc' },
             include: {
                 template: {
@@ -66,19 +66,19 @@ export const listCampaigns = async (req, res) => {
             } else if (campaign.target_type === 'class' && campaign.target_id) {
                 targetObject = await prisma.classes.findUnique({
                     where: { id: campaign.target_id },
-                    select: { 
-                        id: true, 
-                        name: true, 
+                    select: {
+                        id: true,
+                        name: true,
                         school: { select: { id: true, name: true } }
                     }
                 });
             } else if (campaign.target_type === 'individual' && campaign.target_id) {
                 targetObject = await prisma.user.findUnique({
                     where: { id: campaign.target_id },
-                    select: { 
-                        id: true, 
-                        name: true, 
-                        email: true, 
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
                         role: true,
                         school: { select: { id: true, name: true } }
                     }
@@ -101,7 +101,7 @@ export const listCampaigns = async (req, res) => {
 // Get single campaign
 export const getCampaign = async (req, res) => {
     try {
-        const campaign = await prisma.campaign.findUnique({ 
+        const campaign = await prisma.campaign.findUnique({
             where: { id: parseInt(req.params.id) },
             include: {
                 template: {
@@ -109,7 +109,7 @@ export const getCampaign = async (req, res) => {
                 }
             }
         });
-        
+
         if (!campaign) return res.status(404).json({ success: false, message: "Campaign not found" });
 
         // Add target object information
@@ -123,19 +123,19 @@ export const getCampaign = async (req, res) => {
         } else if (campaign.target_type === 'class' && campaign.target_id) {
             targetObject = await prisma.classes.findUnique({
                 where: { id: campaign.target_id },
-                select: { 
-                    id: true, 
-                    name: true, 
+                select: {
+                    id: true,
+                    name: true,
                     school: { select: { id: true, name: true } }
                 }
             });
         } else if (campaign.target_type === 'individual' && campaign.target_id) {
             targetObject = await prisma.user.findUnique({
                 where: { id: campaign.target_id },
-                select: { 
-                    id: true, 
-                    name: true, 
-                    email: true, 
+                select: {
+                    id: true,
+                    name: true,
+                    email: true,
                     role: true,
                     school: { select: { id: true, name: true } }
                 }
@@ -156,17 +156,17 @@ export const getCampaign = async (req, res) => {
 // Update campaign
 export const updateCampaign = async (req, res) => {
     try {
-        const { title,  subject,  body, target_type, target_id, target_role, template_id } = req.body;
-        
+        const { title, subject, body, target_type, target_id, target_role, template_id } = req.body;
+
         // Use title or for campaign title
-        const campaignTitle = title; 
-        
+        const campaignTitle = title;
+
         // Use or body for email content
         const emailBody = body;
-        
+
         // Build update data object, filtering out undefined values
         const updateData = {};
-        
+
         if (campaignTitle !== undefined) updateData.title = campaignTitle;
         if (subject !== undefined) updateData.subject = subject;
         if (emailBody !== undefined) updateData.html_body = emailBody;
@@ -174,12 +174,12 @@ export const updateCampaign = async (req, res) => {
         if (target_id !== undefined) updateData.target_id = target_id ? parseInt(target_id) : null;
         if (target_role !== undefined) updateData.target_role = target_role || null;
         if (template_id !== undefined) updateData.template_id = template_id ? parseInt(template_id) : null;
-        
+
         const campaign = await prisma.campaign.update({
             where: { id: parseInt(req.params.id) },
             data: updateData
         });
-        
+
         res.json({ success: true, message: "Campaign updated", data: campaign });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
@@ -207,19 +207,14 @@ export const sendCampaign = async (req, res) => {
         if (!campaign) return res.status(404).json({ success: false, message: "Campaign not found" });
         if (campaign.status === "sent") return res.status(400).json({ success: false, message: "Campaign already sent" });
 
-        // consent filter — bypass if force=true
         const consentFilter = force ? {} : { consent_marketing: true };
-
-        // Debug
-        console.log('Campaign target:', { type: campaign.target_type, id: campaign.target_id, role: campaign.target_role, force, userId });
 
         let users = [];
 
-        // NEW: If userId is provided, send to specific user only
         if (userId) {
-            const user = await prisma.user.findUnique({ 
-                where: { id: parseInt(userId) }, 
-                select: { email: true, name: true, status: true, consent_marketing: true } 
+            const user = await prisma.user.findUnique({
+                where: { id: parseInt(userId) },
+                select: { email: true, name: true, status: true, consent_marketing: true }
             });
             if (user && user.status !== 2 && (force || user.consent_marketing)) {
                 users = [user];
@@ -260,18 +255,15 @@ export const sendCampaign = async (req, res) => {
         }
 
         if (users.length === 0) {
-            console.log('No users found. consentFilter:', consentFilter);
-            console.log('Campaign details:', { target_type: campaign.target_type, target_id: campaign.target_id, userId });
-            
+
             // Debug: Check if there are any users for this school without filters
             if (campaign.target_type === 'school') {
-                const allSchoolUsers = await prisma.user.findMany({ 
-                    where: { school_id: campaign.target_id }, 
-                    select: { id: true, name: true, email: true, status: true, consent_marketing: true } 
+                const allSchoolUsers = await prisma.user.findMany({
+                    where: { school_id: campaign.target_id },
+                    select: { id: true, name: true, email: true, status: true, consent_marketing: true }
                 });
-                console.log('All users in school (no filters):', allSchoolUsers);
             }
-            
+
             return res.status(400).json({ success: false, message: "No users found matching target criteria" });
         }
 
@@ -281,14 +273,6 @@ export const sendCampaign = async (req, res) => {
         for (const user of users) {
             // Replace {{name}} placeholder with actual name
             const personalizedHtml = campaign.html_body.replace(/\{\{name\}\}/g, user.name);
-
-            // Debug: Log the HTML being sent
-            console.log('=== EMAIL HTML DEBUG ===');
-            console.log('Original HTML length:', campaign.html_body.length);
-            console.log('Personalized HTML preview:', personalizedHtml.substring(0, 500));
-            console.log('Contains img tags:', personalizedHtml.includes('<img'));
-            console.log('Contains escaped HTML:', personalizedHtml.includes('&lt;'));
-            console.log('========================');
 
             try {
                 await sendEmail(user.email, campaign.subject, personalizedHtml, process.env.SMTP_NOREPLY);
@@ -307,8 +291,8 @@ export const sendCampaign = async (req, res) => {
             });
         }
 
-        const message = userId ? 
-            `Email sent to specific user: ${sent} sent, ${failed} failed` : 
+        const message = userId ?
+            `Email sent to specific user: ${sent} sent, ${failed} failed` :
             `Campaign sent to ${sent} users, ${failed} failed`;
 
         res.json({ success: true, message, data: { sent, failed } });
@@ -331,9 +315,9 @@ export const sendCampaignToUser = async (req, res) => {
         if (!campaign) return res.status(404).json({ success: false, message: "Campaign not found" });
 
         // Get user details
-        const user = await prisma.user.findUnique({ 
-            where: { id: parseInt(userId) }, 
-            select: { id: true, email: true, name: true, status: true, consent_marketing: true } 
+        const user = await prisma.user.findUnique({
+            where: { id: parseInt(userId) },
+            select: { id: true, email: true, name: true, status: true, consent_marketing: true }
         });
 
         if (!user) {
@@ -355,11 +339,11 @@ export const sendCampaignToUser = async (req, res) => {
         // Send email
         try {
             await sendEmail(user.email, personalizedSubject, personalizedHtml, process.env.SMTP_NOREPLY);
-            
-            res.json({ 
-                success: true, 
+
+            res.json({
+                success: true,
                 message: `Email sent successfully to ${user.name} (${user.email})`,
-                data: { 
+                data: {
                     user_id: user.id,
                     user_name: user.name,
                     user_email: user.email,
@@ -369,10 +353,10 @@ export const sendCampaignToUser = async (req, res) => {
             });
         } catch (emailError) {
             console.error(`Failed to send email to ${user.email}:`, emailError.message);
-            res.status(500).json({ 
-                success: false, 
+            res.status(500).json({
+                success: false,
                 message: `Failed to send email to ${user.name}`,
-                error: emailError.message 
+                error: emailError.message
             });
         }
 
