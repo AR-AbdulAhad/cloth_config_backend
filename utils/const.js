@@ -1,0 +1,1 @@
+export const frontendDashboardUrl = process.env.FRONTEND_DASHBOARD_URL;

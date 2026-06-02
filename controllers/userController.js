@@ -2,7 +2,7 @@ import prisma from "../config/prisma.js";
 import bcrypt from "bcryptjs";
 import { handlePrismaError } from "../utils/errorHandler.js";
 import { sendClassRepWelcomeEmail } from "../utils/emailService.js";
-
+import { frontendDashboardUrl } from "../utils/const.js";
 export const addClassRep = async (req, res) => {
     try {
         const { name, email, school_id } = req.body;
@@ -23,7 +23,7 @@ export const addClassRep = async (req, res) => {
                 data: { name, password: hashedPassword, school_id: parseInt(school_id), role: 'class_representative', status: 0, class_id: null }
             });
             const encoded = Buffer.from(`${email}${generatedPassword}`).toString('base64');
-            const baseUrl = `https://elipsestudio.com/Cloth-Configurator-Dashboard/set-password?${encoded}`;
+            const baseUrl = `${frontendDashboardUrl}/set-password?${encoded}`;
             await sendClassRepWelcomeEmail(email, baseUrl);
             return res.status(201).json({ success: true, message: "Class Representative restored and updated", data: { id: restored.id, name: restored.name, email: restored.email } });
         }
@@ -33,7 +33,7 @@ export const addClassRep = async (req, res) => {
         });
 
         const encoded = Buffer.from(`${email}${generatedPassword}`).toString('base64');
-        const baseUrl = `https://elipsestudio.com/Cloth-Configurator-Dashboard/set-password?${encoded}`;
+        const baseUrl = `${frontendDashboardUrl}/set-password?${encoded}`;
         await sendClassRepWelcomeEmail(email, baseUrl);
 
         res.status(201).json({ success: true, message: "Class Representative created", data: { id: rep.id, name: rep.name, email: rep.email } });
