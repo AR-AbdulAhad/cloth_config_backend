@@ -275,7 +275,7 @@ export const sendCampaign = async (req, res) => {
             const personalizedHtml = campaign.html_body.replace(/\{\{name\}\}/g, user.name);
 
             try {
-                await sendEmail(user.email, campaign.subject, personalizedHtml, process.env.SMTP_NOREPLY);
+                await sendEmail(user.email, campaign.subject, personalizedHtml, process.env.SMTP_USER);
                 sent++;
             } catch (err) {
                 console.error(`Failed to send to ${user.email}:`, err.message);
@@ -338,7 +338,7 @@ export const sendCampaignToUser = async (req, res) => {
 
         // Send email
         try {
-            await sendEmail(user.email, personalizedSubject, personalizedHtml, process.env.SMTP_NOREPLY);
+            await sendEmail(user.email, personalizedSubject, personalizedHtml, process.env.SMTP_USER);
 
             res.json({
                 success: true,

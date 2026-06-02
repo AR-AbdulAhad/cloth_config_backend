@@ -16,7 +16,7 @@ export const sendEmail = async (to, subject, html, fromAddress = null) => {
     try {
         // Use no-reply address as default sender for clothing-related emails
         const senderEmail = "StudentLife"; // Gmail authenticated account
-        const noReplyEmail = process.env.SMTP_NOREPLY || 'noreply@studentlife.dk';
+        const noReplyEmail = process.env.SMTP_USER || 'noreply@studentlife.dk';
 
         // For notification emails, use noreply as display name
         const isNotificationEmail = subject.includes('New Logo Upload') || subject.includes('New Back Design Upload');
@@ -106,7 +106,7 @@ export const sendOrderConfirmationEmail = async ({ email, studentName, orderId, 
     </div>
 `;
 
-    return sendEmail(email, `Order Confirmation – #${orderId}`, html, process.env.SMTP_NOREPLY);
+    return sendEmail(email, `Order Confirmation – #${orderId}`, html, process.env.SMTP_USER);
 };
 
 // ─────────────────────────────────────────────
@@ -148,7 +148,7 @@ export const sendChangeDeadlineEmail = async ({ email, studentName, orderId, cha
     </div>
 `;
 
-    return sendEmail(email, `Reminder: Order Change Deadline – #${orderId}`, html, process.env.SMTP_NOREPLY);
+    return sendEmail(email, `Reminder: Order Change Deadline – #${orderId}`, html, process.env.SMTP_USER);
 };
 
 // ─────────────────────────────────────────────
@@ -187,7 +187,7 @@ export const sendStatusEmail = async ({ email, studentName, orderId, status, tra
     </div>
 `;
 
-    return sendEmail(email, `Order Update: ${info.label} – #${orderId}`, html, process.env.SMTP_NOREPLY);
+    return sendEmail(email, `Order Update: ${info.label} – #${orderId}`, html, process.env.SMTP_USER);
 };
 
 // ─────────────────────────────────────────────
@@ -230,7 +230,7 @@ export const sendFollowUpEmail = async ({ email, studentName, educationType }) =
         </p>
     </div>`;
 
-    return sendEmail(email, 'Tak for din StudentLife ordre – Plejevejledning & mere', html, process.env.SMTP_NOREPLY);
+    return sendEmail(email, 'Tak for din StudentLife ordre – Plejevejledning & mere', html, process.env.SMTP_USER);
 };
 
 export const sendClassRepWelcomeEmail = async (email, joinLink) => {
