@@ -178,7 +178,13 @@ export const listBackDesigns = async (req, res) => {
         const [results, total] = await Promise.all([
             prisma.backDesign.findMany({
                 where, skip, take: limitNum, orderBy: { created_at: 'desc' },
-                include: { class: { select: { id: true, name: true } } }
+                include: {
+                    class: {
+                        include: {
+                            school: true   // 👈 yahan se school aa jayega
+                        }
+                    }
+                }
             }),
             prisma.backDesign.count({ where })
         ]);
