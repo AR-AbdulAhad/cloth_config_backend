@@ -79,19 +79,19 @@ export const uploadClassBackDesign = async (req, res) => {
         try {
             // Get class, school and user info for notification
             const [classInfo, user, adminEmails] = await Promise.all([
-                prisma.classes.findUnique({ 
-                    where: { id: parseInt(classId) }, 
+                prisma.classes.findUnique({
+                    where: { id: parseInt(classId) },
                     include: { school: { select: { name: true } } }
                 }),
-                prisma.user.findUnique({ 
-                    where: { id: req.user.id }, 
-                    select: { name: true, email: true } 
+                prisma.user.findUnique({
+                    where: { id: req.user.id },
+                    select: { name: true, email: true }
                 }),
                 getAdminNotificationEmails()
             ]);
 
             // Send notification to all admins
-            const notificationPromises = adminEmails.map(adminEmail => 
+            const notificationPromises = adminEmails.map(adminEmail =>
                 sendBackDesignUploadNotificationEmail({
                     adminEmail,
                     designName: design.name,
@@ -243,8 +243,12 @@ export const getConfiguratorBackDesign = async (req, res) => {
         const design = await prisma.backDesign.findFirst({
             where: {
                 class_id: parseInt(classId),
+                class: { status: { not: 2 } }, // ensure class is not deleted
                 isFromConfigurator: true,
                 status: { not: 2 } // rejected designs ko ignore karo
+            },
+            include: {
+                class: true
             },
             orderBy: { created_at: 'desc' }
         });
@@ -325,7 +329,7 @@ export const getStudyTripCountries = async (req, res) => {
         const countries = await prisma.country.findMany({
             where: { status: 0 },
             orderBy: { name: 'asc' },
-            select: { id: true, name: true, code: true,status: true }
+            select: { id: true, name: true, code: true, status: true }
         });
         res.json({ success: true, data: countries });
     } catch (err) {
@@ -558,14 +562,14 @@ export const adminDeleteBackDesign = async (req, res) => {
     try {
         const { designId } = req.params;
 
-        const design = await prisma.backDesign.findUnique({ 
+        const design = await prisma.backDesign.findUnique({
             where: { id: parseInt(designId) },
-            include: { 
+            include: {
                 class: { select: { name: true } },
                 country: { select: { name: true } }
             }
         });
-        
+
         if (!design) {
             return res.status(404).json({ success: false, message: "Back design not found" });
         }
@@ -576,30 +580,30 @@ export const adminDeleteBackDesign = async (req, res) => {
 
         // Check if design is being used as active back design for any class
         const activeClasses = await prisma.classes.count({
-            where: { 
+            where: {
                 back_design_id: parseInt(designId),
                 status: { not: 2 }
             }
         });
 
         if (activeClasses > 0) {
-            return res.status(400).json({ 
-                success: false, 
-                message: `Cannot delete back design. It is currently set as active design for ${activeClasses} class(es)` 
+            return res.status(400).json({
+                success: false,
+                message: `Cannot delete back design. It is currently set as active design for ${activeClasses} class(es)`
             });
         }
 
-        await prisma.backDesign.update({ 
-            where: { id: parseInt(designId) }, 
-            data: { status: 2 } 
+        await prisma.backDesign.update({
+            where: { id: parseInt(designId) },
+            data: { status: 2 }
         });
 
-        const location = design.class ? `class "${design.class.name}"` : 
-                        design.country ? `country "${design.country.name}"` : 'library';
+        const location = design.class ? `class "${design.class.name}"` :
+            design.country ? `country "${design.country.name}"` : 'library';
 
-        res.json({ 
-            success: true, 
-            message: `Back design "${design.name}" from ${location} has been deleted` 
+        res.json({
+            success: true,
+            message: `Back design "${design.name}" from ${location} has been deleted`
         });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
@@ -613,20 +617,20 @@ export const adminPermanentDeleteBackDesign = async (req, res) => {
         const { confirm } = req.body;
 
         if (confirm !== 'DELETE') {
-            return res.status(400).json({ 
-                success: false, 
-                message: "Please confirm deletion by sending 'confirm: DELETE' in request body" 
+            return res.status(400).json({
+                success: false,
+                message: "Please confirm deletion by sending 'confirm: DELETE' in request body"
             });
         }
 
-        const design = await prisma.backDesign.findUnique({ 
+        const design = await prisma.backDesign.findUnique({
             where: { id: parseInt(designId) },
-            include: { 
+            include: {
                 class: { select: { name: true } },
                 country: { select: { name: true } }
             }
         });
-        
+
         if (!design) {
             return res.status(404).json({ success: false, message: "Back design not found" });
         }
@@ -637,9 +641,9 @@ export const adminPermanentDeleteBackDesign = async (req, res) => {
         });
 
         if (anyClasses > 0) {
-            return res.status(400).json({ 
-                success: false, 
-                message: `Cannot permanently delete back design. It is referenced by ${anyClasses} class(es). Use soft delete instead.` 
+            return res.status(400).json({
+                success: false,
+                message: `Cannot permanently delete back design. It is referenced by ${anyClasses} class(es). Use soft delete instead.`
             });
         }
 
@@ -656,12 +660,12 @@ export const adminPermanentDeleteBackDesign = async (req, res) => {
         // Delete from database
         await prisma.backDesign.delete({ where: { id: parseInt(designId) } });
 
-        const location = design.class ? `class "${design.class.name}"` : 
-                        design.country ? `country "${design.country.name}"` : 'library';
+        const location = design.class ? `class "${design.class.name}"` :
+            design.country ? `country "${design.country.name}"` : 'library';
 
-        res.json({ 
-            success: true, 
-            message: `Back design "${design.name}" from ${location} has been permanently deleted` 
+        res.json({
+            success: true,
+            message: `Back design "${design.name}" from ${location} has been permanently deleted`
         });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
@@ -672,13 +676,13 @@ export const adminDeleteLibraryDesign = async (req, res) => {
     try {
         const { designId } = req.params;
 
-        const design = await prisma.backDesign.findUnique({ 
+        const design = await prisma.backDesign.findUnique({
             where: { id: parseInt(designId) },
-            include: { 
+            include: {
                 country: { select: { name: true } }
             }
         });
-        
+
         if (!design) {
             return res.status(404).json({ success: false, message: "Library design not found" });
         }
@@ -693,29 +697,29 @@ export const adminDeleteLibraryDesign = async (req, res) => {
 
         // Check if design is being used as active back design for any class
         const activeClasses = await prisma.classes.count({
-            where: { 
+            where: {
                 back_design_id: parseInt(designId),
                 status: { not: 2 }
             }
         });
 
         if (activeClasses > 0) {
-            return res.status(400).json({ 
-                success: false, 
-                message: `Cannot delete library design. It is currently set as active design for ${activeClasses} class(es)` 
+            return res.status(400).json({
+                success: false,
+                message: `Cannot delete library design. It is currently set as active design for ${activeClasses} class(es)`
             });
         }
 
-        await prisma.backDesign.update({ 
-            where: { id: parseInt(designId) }, 
-            data: { status: 2 } 
+        await prisma.backDesign.update({
+            where: { id: parseInt(designId) },
+            data: { status: 2 }
         });
 
         const location = design.country ? `country "${design.country.name}"` : 'library';
 
-        res.json({ 
-            success: true, 
-            message: `Library design "${design.name}" from ${location} has been deleted` 
+        res.json({
+            success: true,
+            message: `Library design "${design.name}" from ${location} has been deleted`
         });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
@@ -729,19 +733,19 @@ export const adminPermanentDeleteLibraryDesign = async (req, res) => {
         const { confirm } = req.body;
 
         if (confirm !== 'DELETE') {
-            return res.status(400).json({ 
-                success: false, 
-                message: "Please confirm deletion by sending 'confirm: DELETE' in request body" 
+            return res.status(400).json({
+                success: false,
+                message: "Please confirm deletion by sending 'confirm: DELETE' in request body"
             });
         }
 
-        const design = await prisma.backDesign.findUnique({ 
+        const design = await prisma.backDesign.findUnique({
             where: { id: parseInt(designId) },
-            include: { 
+            include: {
                 country: { select: { name: true } }
             }
         });
-        
+
         if (!design) {
             return res.status(404).json({ success: false, message: "Library design not found" });
         }
@@ -756,9 +760,9 @@ export const adminPermanentDeleteLibraryDesign = async (req, res) => {
         });
 
         if (anyClasses > 0) {
-            return res.status(400).json({ 
-                success: false, 
-                message: `Cannot permanently delete library design. It is referenced by ${anyClasses} class(es). Use soft delete instead.` 
+            return res.status(400).json({
+                success: false,
+                message: `Cannot permanently delete library design. It is referenced by ${anyClasses} class(es). Use soft delete instead.`
             });
         }
 
@@ -777,9 +781,9 @@ export const adminPermanentDeleteLibraryDesign = async (req, res) => {
 
         const location = design.country ? `country "${design.country.name}"` : 'library';
 
-        res.json({ 
-            success: true, 
-            message: `Library design "${design.name}" from ${location} has been permanently deleted` 
+        res.json({
+            success: true,
+            message: `Library design "${design.name}" from ${location} has been permanently deleted`
         });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
