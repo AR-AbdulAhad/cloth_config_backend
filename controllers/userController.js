@@ -60,7 +60,22 @@ export const listClassReps = async (req, res) => {
         const [reps, total] = await Promise.all([
             prisma.user.findMany({
                 where,
-                select: { id: true, name: true, email: true, class_id: true, school: { select: { name: true } }, status: true },
+                select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    class_id: true,
+                    school_id: true,
+                    school: { select: { name: true } },
+                    class: {
+                        select: {
+                            name: true,
+                            process_status: true,
+                            graduation_year: true
+                        }
+                    },
+                    status: true
+                },
                 skip, take: limitNum, orderBy: { created_at: 'desc' }
             }),
             prisma.user.count({ where })
@@ -137,27 +152,65 @@ export const editClassRep = async (req, res) => {
         const id = parseInt(req.params.id);
         const { name, email, school_id } = req.body;
 
+        const existingRep = await prisma.user.findUnique({
+            where: { id }
+        });
+
+        if (!existingRep) {
+            return res.status(404).json({
+                success: false,
+                message: "Class Representative not found"
+            });
+        }
+
         const data = {};
+
         if (name) data.name = name;
         if (email) data.email = email;
-        if (school_id) data.school_id = parseInt(school_id);
+
+        // School changed?
+        if (school_id) {
+            const newSchoolId = parseInt(school_id);
+
+            if (existingRep.school_id !== newSchoolId) {
+                data.school_id = newSchoolId;
+
+                // Remove class assignment
+                data.class_id = null;
+            }
+        }
 
         const updated = await prisma.user.update({
             where: { id },
             data
         });
-        res.json({ success: true, message: "Class Representative updated", data: { id: updated.id, name: updated.name, email: updated.email } });
+
+        res.json({
+            success: true,
+            message:
+                existingRep.school_id !== parseInt(school_id)
+                    ? "School updated and class assignment removed"
+                    : "Class Representative updated",
+            data: {
+                id: updated.id,
+                name: updated.name,
+                email: updated.email
+            }
+        });
     } catch (err) {
-        res.status(500).json({ success: false, error: err.message });
+        res.status(500).json({
+            success: false,
+            error: err.message
+        });
     }
 };
 
 export const removeClassRep = async (req, res) => {
     try {
         const id = parseInt(req.params.id);
-        await prisma.user.update({
+        await prisma.user.delete({
             where: { id },
-            data: { status: 2 }
+            // data: { status: 2 }
         });
         res.json({ success: true, message: "Class Representative deleted" });
     } catch (err) {

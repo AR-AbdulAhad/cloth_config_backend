@@ -30,7 +30,7 @@ export const addClass = async (req, res) => {
 
 export const listAllClasses = async (req, res) => {
     try {
-        const { school_id, page = 1, limit = 10, search = '' } = req.body;
+        const { school_id, page = 1, limit = 10, search = '', unassigned_only } = req.body;
         const pageNum = parseInt(page);
         const limitNum = parseInt(limit);
         const skip = (pageNum - 1) * limitNum;
@@ -38,7 +38,16 @@ export const listAllClasses = async (req, res) => {
         const where = {
             status: { not: 2 },
             ...(school_id && { school_id: parseInt(school_id) }),
-            ...(search && { name: { contains: search } })
+            ...(search && { name: { contains: search } }),
+            // Only return classes that have no active class rep assigned
+            ...(unassigned_only && {
+                users: {
+                    none: {
+                        role: 'class_representative',
+                        status: { not: 2 }
+                    }
+                }
+            })
         };
 
         const [classes, total] = await Promise.all([
@@ -183,13 +192,13 @@ export const assignClassRep = async (req, res) => {
         if (!rep || rep.role !== "class_representative" || rep.status === 2) return res.status(404).json({ success: false, message: "Rep not found" });
 
         // Check if rep is already assigned to another class
-        if (rep.class_id && rep.class_id !== parseInt(class_id)) {
-            const assignedClass = await prisma.classes.findUnique({ where: { id: rep.class_id }, select: { name: true } });
-            return res.status(409).json({
-                success: false,
-                message: `This representative is already assigned to class "${assignedClass?.name || rep.class_id}". Unassign them first.`
-            });
-        }
+        // if (rep.class_id && rep.class_id !== parseInt(class_id)) {
+        //     const assignedClass = await prisma.classes.findUnique({ where: { id: rep.class_id }, select: { name: true } });
+        //     return res.status(409).json({
+        //         success: false,
+        //         message: `This representative is already assigned to class "${assignedClass?.name || rep.class_id}". Unassign them first.`
+        //     });
+        // }
 
         // If same rep already assigned, no change needed
         if (existingRep && existingRep.id === rep.id) return res.json({ success: true, message: "Rep already assigned to this class" });
