@@ -9,9 +9,10 @@ import { addClass, editClass, removeClass, listAllClasses, toggleClassStatus, lo
 import { listSchoolLogos, approveLogo, rejectLogo, adminUploadLogo, adminUploadBackDesign, adminDeleteLogo, adminPermanentDeleteLogo } from "../controllers/logoController.js";
 import { listBackDesigns, approveBackDesign, rejectBackDesign, getClassBackDesigns, uploadLibraryDesign, getLibraryDesignsByCountry, getStudyTripCountries, adminDeleteBackDesign, adminPermanentDeleteBackDesign, adminDeleteLibraryDesign, adminPermanentDeleteLibraryDesign } from "../controllers/designController.js";
 import { listCountries, addCountry, editCountry, removeCountry, permanentDeleteCountry, toggleCountryStatus } from "../controllers/countryController.js";
-import { listFonts, getActiveFonts, setNameListFont, addFont, removeFont, permanentDeleteFont } from "../controllers/fontController.js";
+import { listFonts, getActiveFonts, setNameListFont, addFont, removeFont, permanentDeleteFont, toggleFontStatus, editFont } from "../controllers/fontController.js";
 import { generateProductionFiles, listProductionPackages, sendClassStatusEmail, sendFollowUpToClass } from "../controllers/productionController.js";
 import { assignClassRep } from "../controllers/classController.js";
+import { studentLogin, getDashboardData, placeOrder, getMyOrder, getMyOrderHistory, deleteHistory, getMyProfile, updateMyProfile, getClassesBySchool, checkClassSignup, getStudentDetails, deleteStudent, permanentDeleteStudent, listAllStudents } from "../controllers/studentController.js";
 import { getDashboardStats, toggleEntityStatus, sendDeadlineReminder, testEmail, getClassStudents, getClassRep, getAllClassesWithStudentCount } from "../controllers/adminController.js";
 import { getSettings, updateSetting, updateSettings } from "../controllers/settingController.js";
 import { getClassNameList, approveNameList, rejectNameList, getAllNameList, unlockNameList } from "../controllers/nameListControllers.js";
@@ -88,8 +89,10 @@ router.put("/country/:id/toggle-status", adminMiddleware, toggleCountryStatus);
 // Fonts
 router.post("/fonts", adminMiddleware, listFonts);
 router.post("/font/create", adminMiddleware, addFont);
+router.put("/font/:id/update", adminMiddleware, editFont);
 router.delete("/font/:id/delete", adminMiddleware, removeFont);
 router.delete("/font/:id/permanent-delete", adminMiddleware, permanentDeleteFont);
+router.put("/font/:id/toggle-status", adminMiddleware, toggleFontStatus);
 
 // Back designs
 router.post("/back-designs", adminMiddleware, listBackDesigns);
@@ -123,6 +126,12 @@ router.get("/orders/:orderId/history", adminMiddleware, getOrderHistory);
 router.put("/orders/:orderId/unlock", adminMiddleware, unlockOrder);
 router.put("/orders/:orderId/lock", adminMiddleware, lockOrder);
 router.get("/debug/order-history", adminMiddleware, debugOrderHistory);
+
+// Student Routes (Admin)
+router.post("/students", adminMiddleware, listAllStudents);
+router.get("/student/:id/details", adminMiddleware, getStudentDetails);
+router.delete("/student/:id/delete", adminMiddleware, deleteStudent);
+router.delete("/student/:id/permanent-delete", adminMiddleware, permanentDeleteStudent);
 
 // Production Packages
 router.post("/generate-files/:classId", adminMiddleware, generateProductionFiles);

@@ -16,24 +16,51 @@ export const addSchool = async (req, res) => {
 export const listSchools = async (req, res) => {
     try {
         const { page = 1, limit = 10, search = '' } = req.body;
+
         const pageNum = Number(page);
         const limitNum = Number(limit);
         const skip = (pageNum - 1) * limitNum;
 
         const where = {
             status: { not: 2 },
-            ...(search && { name: { contains: search } })
+            ...(search && {
+                name: {
+                    contains: search,
+                },
+            }),
         };
 
         const [results, total] = await Promise.all([
-            prisma.school.findMany({ where, skip, take: limitNum, orderBy: { created_at: 'desc' } }),
-            prisma.school.count({ where })
+            prisma.school.findMany({
+                where,
+                skip,
+                take: limitNum,
+                orderBy: {
+                    created_at: 'desc',
+                },
+                include: {
+                    classes: true, 
+                },
+            }),
+            prisma.school.count({ where }),
         ]);
 
-        res.json({ success: true, data: results, pagination: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) } });
+        res.json({
+            success: true,
+            data: results,
+            pagination: {
+                total,
+                page: pageNum,
+                limit: limitNum,
+                totalPages: Math.ceil(total / limitNum),
+            },
+        });
     } catch (err) {
         const error = handlePrismaError(err);
-        res.status(error.status).json({ success: false, message: error.message });
+        res.status(error.status).json({
+            success: false,
+            message: error.message,
+        });
     }
 };
 

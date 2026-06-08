@@ -253,6 +253,7 @@ export const getSidebarMenus = async (req, res) => {
                         { title: 'Schools', path: '/schools', icon: 'SchoolIcon' },
                         { title: 'System Classes', path: '/all-classes', icon: 'ClassIcon' },
                         { title: 'Class Representatives', path: '/class-reps', icon: 'PeopleIcon' },
+                        { title: 'Students Overview', path: '/students', icon: 'PeopleIcon' },
                         { title: 'School Overview', path: '/school-overview', icon: 'PeopleIcon' },
                     ]
                 },
@@ -289,10 +290,10 @@ export const getSidebarMenus = async (req, res) => {
                 {
                     module: 'Main',
                     children: [
-                        { title: 'My Classes', path: '/my-class', icon: 'GroupIcon' },
-                        { title: 'Logo Upload', path: '/upload-files', icon: 'CloudUploadIcon' },
-                        { title: 'Back Design Configurator', path: '/back-design-configurator', icon: 'BrushIcon' },
-                        { title: 'Student Overview', path: '/student-overview', icon: 'PeopleAltIcon' },
+                        { title: 'Mine Klasser', path: '/my-class', icon: 'GroupIcon' },
+                        { title: 'Logo Upload', path: '/upload-files', icon: 'CloudUploadIcon' }, // or "Logo Upload" if you want to keep the English term
+                        { title: 'Konfigurator til Bagsidedesign', path: '/back-design-configurator', icon: 'BrushIcon' },
+                        { title: 'Studieoversigt', path: '/student-overview', icon: 'PeopleAltIcon' },
                     ]
                 }
             ]

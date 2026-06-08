@@ -140,7 +140,8 @@ export const listStudents = async (req, res) => {
             status: { not: 2 },
             ...(search && {
                 OR: [
-                    { name: { contains: search } }
+                    { name: { contains: search } },
+                    { email: { contains: search } }
                 ]
             })
         };
@@ -151,9 +152,24 @@ export const listStudents = async (req, res) => {
                 select: {
                     id: true,
                     name: true,
+                    email: true,
+                    phone_number: true,
+                    year_of_birth: true,
+                    status: true,
+                    consent_marketing: true,
+                    consent_production: true,
+                    created_at: true,
+                    school: true,
+                    class:  true,
                     orders: {
                         where: { status: { not: 2 } },
-                        select: { process_status: true },
+                        select: {
+                            id: true,
+                            process_status: true,
+                            payment_status: true,
+                            total_amount: true,
+                            amount_paid: true
+                        },
                         take: 1,
                         orderBy: { created_at: 'desc' }
                     }
@@ -172,30 +188,44 @@ export const listStudents = async (req, res) => {
             })
         ]);
 
-        const formattedStudents = students.map(student => {
-            const latestOrder = student.orders?.[0];
-            let status = 'Registered';
+        const data = students.map(student => {
+            const latestOrder = student.orders?.[0] ?? null;
+            let order_label = 'Registered';
             if (latestOrder) {
-                status = latestOrder.process_status === 'completed' ? 'Order Completed' : 'In Progress';
+                order_label = latestOrder.process_status === 'completed' ? 'Order Completed' : 'In Progress';
             }
             return {
-                id: student.id,
-                name: student.name,
-                status
+                id:                 student.id,
+                name:               student.name,
+                email:              student.email,
+                phone_number:       student.phone_number,
+                year_of_birth:      student.year_of_birth,
+                status:             student.status,
+                consent_marketing:  student.consent_marketing,
+                consent_production: student.consent_production,
+                created_at:         student.created_at,
+                school:             student.school,
+                class:              student.class,
+                order_label,
+                order_status:       latestOrder?.process_status  ?? 'no_order',
+                payment_status:     latestOrder?.payment_status  ?? null,
+                total_amount:       latestOrder ? parseFloat(latestOrder.total_amount ?? 0) : null,
+                amount_paid:        latestOrder ? parseFloat(latestOrder.amount_paid  ?? 0) : null,
+                order_id:           latestOrder?.id ?? null
             };
         });
 
         res.json({
             success: true,
-            data: formattedStudents,
+            data,
             pagination: {
                 total,
-                page: pageNum,
-                limit: limitNum,
+                page:       pageNum,
+                limit:      limitNum,
                 totalPages: Math.ceil(total / limitNum) || 0
             },
             summary: {
-                total_registered: total,
+                total_registered:       total,
                 total_completed_orders: totalCompletedOrders
             }
         });

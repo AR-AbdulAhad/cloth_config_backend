@@ -69,7 +69,7 @@ export const listCampaigns = async (req, res) => {
                     select: {
                         id: true,
                         name: true,
-                        school: { select: { id: true, name: true } }
+                        school: true
                     }
                 });
             } else if (campaign.target_type === 'individual' && campaign.target_id) {
@@ -80,7 +80,7 @@ export const listCampaigns = async (req, res) => {
                         name: true,
                         email: true,
                         role: true,
-                        school: { select: { id: true, name: true } }
+                        school: true
                     }
                 });
             }
@@ -126,7 +126,7 @@ export const getCampaign = async (req, res) => {
                 select: {
                     id: true,
                     name: true,
-                    school: { select: { id: true, name: true } }
+                    school: true
                 }
             });
         } else if (campaign.target_type === 'individual' && campaign.target_id) {
@@ -137,7 +137,7 @@ export const getCampaign = async (req, res) => {
                     name: true,
                     email: true,
                     role: true,
-                    school: { select: { id: true, name: true } }
+                    school: true
                 }
             });
         }

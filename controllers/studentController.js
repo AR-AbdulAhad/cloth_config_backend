@@ -86,8 +86,6 @@ export const studentLogin = async (req, res) => {
     }
 };
 
-
-// Get Dashboard Data (Logos, Back Design)
 export const getDashboardData = async (req, res) => {
     try {
         const { classId, schoolId } = req.params;
@@ -487,8 +485,6 @@ export const placeOrder = async (req, res) => {
     }
 };
 
-
-// Get current student order
 export const getMyOrder = async (req, res) => {
     try {
         const studentId = req.user.id;
@@ -530,11 +526,10 @@ export const getMyOrder = async (req, res) => {
     }
 };
 
-// Get Order History for a student
 export const getMyOrderHistory = async (req, res) => {
     try {
         const studentId = req.user.id;
-        
+
         // Add pagination support
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 50; // Default to 50 entries
@@ -542,8 +537,8 @@ export const getMyOrderHistory = async (req, res) => {
 
         // Check if orderHistory model exists in Prisma client
         if (!prisma.orderHistory) {
-            return res.status(503).json({ 
-                success: false, 
+            return res.status(503).json({
+                success: false,
                 message: "Order history feature not yet migrated. Please run: npx prisma migrate dev --name add_order_versioning",
                 data: []
             });
@@ -590,7 +585,6 @@ export const getMyOrderHistory = async (req, res) => {
     }
 };
 
-// Delete a history entry
 export const deleteHistory = async (req, res) => {
     try {
         const { id } = req.params;
@@ -625,7 +619,6 @@ export const deleteHistory = async (req, res) => {
     }
 };
 
-// Get student profile
 export const getMyProfile = async (req, res) => {
     try {
         const student = await prisma.user.findUnique({
@@ -636,7 +629,7 @@ export const getMyProfile = async (req, res) => {
                 consent_marketing: true, consent_production: true,
                 created_at: true,
                 class: { select: { id: true, name: true } },
-                school: { select: { id: true, name: true } }
+                school: true
             }
         });
         res.json({ success: true, data: student });
@@ -645,7 +638,6 @@ export const getMyProfile = async (req, res) => {
     }
 };
 
-// Update student profile
 export const updateMyProfile = async (req, res) => {
     try {
         const { name, phone_number, year_of_birth, consent_marketing, consent_production } = req.body;
@@ -661,7 +653,7 @@ export const updateMyProfile = async (req, res) => {
             data,
             select: {
                 id: true, name: true, email: true, phone_number: true, year_of_birth: true, consent_marketing: true, consent_production: true, class: { select: { id: true, name: true } },
-                school: { select: { id: true, name: true } }
+                school: true
             }
         });
         res.json({ success: true, message: "Profile updated", data: updated });
@@ -670,7 +662,6 @@ export const updateMyProfile = async (req, res) => {
     }
 };
 
-// Get classes by school ID (for contact form / public use)
 export const getClassesBySchool = async (req, res) => {
     try {
         const { schoolId } = req.params;
@@ -699,8 +690,6 @@ export const getClassesBySchool = async (req, res) => {
     }
 };
 
-// Check if student's class is signed up (has class_id assigned)
-// Used for "Upload own design" button — if no class, show message
 export const checkClassSignup = async (req, res) => {
     try {
         const student = await prisma.user.findUnique({
@@ -712,7 +701,7 @@ export const checkClassSignup = async (req, res) => {
                         id: true,
                         name: true,
                         process_status: true,
-                        school: { select: { id: true, name: true } }
+                        school: true
                     }
                 }
             }
@@ -734,6 +723,303 @@ export const checkClassSignup = async (req, res) => {
                 class_name: student.class.name,
                 process_status: student.class.process_status,
                 school: student.class.school
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+export const getStudentDetails = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const studentId = parseInt(id);
+
+        const student = await prisma.user.findUnique({
+            where: { id: studentId },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                phone_number: true,
+                year_of_birth: true,
+                role: true,
+                status: true,
+                consent_marketing: true,
+                consent_production: true,
+                created_at: true,
+                school: true,
+               class: true,
+                orders: {
+                    where: { status: { not: 2 } },
+                    select: {
+                        id: true,
+                        process_status: true,
+                        payment_status: true,
+                        total_amount: true,
+                        amount_paid: true,
+                        created_at: true,
+                        order_items: {
+                            where: { status: { not: 2 } },
+                            select: { id: true, product_type: true, selectedColor: true, selectedSize: true }
+                        }
+                    },
+                    orderBy: { created_at: 'desc' }
+                }
+            }
+        });
+
+        if (!student) {
+            return res.status(404).json({ success: false, message: "Student not found" });
+        }
+
+        if (student.role !== 'student') {
+            return res.status(400).json({ success: false, message: "User is not a student" });
+        }
+
+        // Class rep can only view students in their own class
+        if (req.user.role === 'class_representative') {
+            if (student.class?.id !== req.user.class_id) {
+                return res.status(403).json({ success: false, message: "Unauthorized: student is not in your class" });
+            }
+        }
+
+        res.json({ success: true, data: student });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+export const deleteStudent = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const studentId = parseInt(id);
+
+        const student = await prisma.user.findUnique({
+            where: { id: studentId },
+            include: {
+                orders: {
+                    where: { status: { not: 2 } },
+                    select: {
+                        id: true,
+                        process_status: true,
+                        payment_status: true,
+                        amount_paid: true
+                    }
+                }
+            }
+        });
+
+        if (!student) {
+            return res.status(404).json({ success: false, message: "Student not found" });
+        }
+
+        if (student.role !== 'student') {
+            return res.status(400).json({ success: false, message: "User is not a student" });
+        }
+
+        if (student.status === 1) {
+            return res.status(400).json({ success: false, message: "Student is already disabled" });
+        }
+
+        if (student.status === 2) {
+            return res.status(400).json({ success: false, message: "Student is already permanently deleted" });
+        }
+
+        // Class rep can only disable students in their own class
+        if (req.user.role === 'class_representative') {
+            if (student.class_id !== req.user.class_id) {
+                return res.status(403).json({ success: false, message: "Unauthorized: student is not in your class" });
+            }
+        }
+
+        // Block if student has any paid or partially paid orders
+        const paidOrders = student.orders.filter(o =>
+            o.payment_status === 'paid' || o.payment_status === 'partial'
+        );
+
+        if (paidOrders.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: `Cannot disable student. They have ${paidOrders.length} paid/partial order(s). Resolve payments first.`
+            });
+        }
+
+        // Disable the student — status 1 blocks login and all actions via authMiddleware
+        await prisma.user.update({
+            where: { id: studentId },
+            data: { status: 1 }
+        });
+
+        res.json({
+            success: true,
+            message: `Student "${student.name}" has been disabled. They can no longer login or perform any actions.`,
+            data: {
+                student_id: studentId,
+                name: student.name,
+                status: 1
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+export const permanentDeleteStudent = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { confirm } = req.body;
+        const studentId = parseInt(id);
+
+        if (confirm !== 'DELETE') {
+            return res.status(400).json({
+                success: false,
+                message: "Please confirm by sending { confirm: 'DELETE' } in request body"
+            });
+        }
+
+        const student = await prisma.user.findUnique({
+            where: { id: studentId },
+            include: {
+                orders: { select: { id: true, payment_status: true } }
+            }
+        });
+
+        if (!student) {
+            return res.status(404).json({ success: false, message: "Student not found" });
+        }
+
+        if (student.role !== 'student') {
+            return res.status(400).json({ success: false, message: "User is not a student" });
+        }
+
+        // Must be disabled (status=1) before permanent delete
+        if (student.status !== 1) {
+            return res.status(400).json({
+                success: false,
+                message: "Student must be disabled first before permanent deletion. Use the disable endpoint first."
+            });
+        }
+
+        // Block if student has any paid orders — cannot erase payment records
+        const paidOrders = student.orders.filter(o =>
+            o.payment_status === 'paid' || o.payment_status === 'partial'
+        );
+        if (paidOrders.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: `Cannot permanently delete. Student has ${paidOrders.length} paid/partial order(s) that must be retained for records.`
+            });
+        }
+
+        // Hard delete — cascades to orders, order_items, order_history, logos via schema onDelete: Cascade
+        await prisma.user.delete({ where: { id: studentId } });
+
+        res.json({
+            success: true,
+            message: `Student "${student.name}" has been permanently deleted from the system`
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+export const listAllStudents = async (req, res) => {
+    try {
+        const {
+            page = 1,
+            limit = 10,
+            search = '',
+            school_id,
+            class_id,
+            status,          // 0 = active, 1 = inactive, 2 = deleted  (omit = all except deleted)
+            order_status     // filter by latest order process_status e.g. 'saved', 'completed', 'no_order'
+        } = req.body || {};
+
+        const pageNum = Math.max(1, parseInt(page));
+        const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
+        const skip = (pageNum - 1) * limitNum;
+
+        const where = {
+            role: 'student',
+            // default: exclude deleted, unless caller explicitly sends status: 2
+            status: status !== undefined ? parseInt(status) : { not: 2 },
+            ...(school_id && { school_id: parseInt(school_id) }),
+            ...(class_id && { class_id: parseInt(class_id) }),
+            ...(search && {
+                OR: [
+                    { name: { contains: search } },
+                    { email: { contains: search } }
+                ]
+            })
+        };
+
+        const [students, total] = await Promise.all([
+            prisma.user.findMany({
+                where,
+                select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    phone_number: true,
+                    year_of_birth: true,
+                    status: true,
+                    consent_marketing: true,
+                    consent_production: true,
+                    created_at: true,
+                    school: true,
+                    class: true,
+                    orders: {
+                        where: { status: { not: 2 } },
+                        select: { id: true, process_status: true, payment_status: true, total_amount: true, amount_paid: true },
+                        orderBy: { created_at: 'desc' },
+                        take: 1
+                    }
+                },
+                orderBy: { created_at: 'desc' },
+                skip,
+                take: limitNum
+            }),
+            prisma.user.count({ where })
+        ]);
+
+        // Flatten latest order info + optional order_status filter
+        let data = students.map(s => {
+            const latestOrder = s.orders[0] ?? null;
+            return {
+                id: s.id,
+                name: s.name,
+                email: s.email,
+                phone_number: s.phone_number,
+                year_of_birth: s.year_of_birth,
+                status: s.status,
+                consent_marketing: s.consent_marketing,
+                consent_production: s.consent_production,
+                created_at: s.created_at,
+                school: s.school,
+                class: s.class,
+                order_status: latestOrder?.process_status ?? 'no_order',
+                payment_status: latestOrder?.payment_status ?? null,
+                total_amount: latestOrder ? parseFloat(latestOrder.total_amount ?? 0) : null,
+                amount_paid: latestOrder ? parseFloat(latestOrder.amount_paid ?? 0) : null,
+                order_id: latestOrder?.id ?? null,
+                orders: latestOrder ?? null
+            };
+        });
+
+        // Client-side filter by order_status if provided
+        if (order_status) {
+            data = data.filter(s => s.order_status === order_status);
+        }
+
+        res.json({
+            success: true,
+            data,
+            pagination: {
+                total,
+                page: pageNum,
+                limit: limitNum,
+                totalPages: Math.ceil(total / limitNum)
             }
         });
     } catch (err) {

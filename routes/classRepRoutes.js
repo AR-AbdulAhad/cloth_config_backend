@@ -9,6 +9,7 @@ import { uploadClassBackDesign, getConfiguratorBackDesign, reUploadClassBackDesi
 import multer from "multer";
 import { getNameListForUser, addNameListItem, updateNameListItem, reorderNameListItems, markNameListReady, createNameList, deleteNameListItem } from "../controllers/nameListControllers.js";
 import { getActiveFonts, setNameListFont } from "../controllers/fontController.js";
+import { getStudentDetails, deleteStudent } from "../controllers/studentController.js";
 
 const logoStorage = multer.diskStorage({
     destination: (_req, _file, cb) => {
@@ -67,6 +68,8 @@ router.get("/class/:classId/student-count", middleware, getMyClassStudentCount);
 
 // Student Management
 router.post("/students", middleware, listStudents);
+router.get("/student/:id/details", middleware, getStudentDetails);
+router.delete("/student/:id/delete", middleware, deleteStudent);
 router.get("/generate-registration-link", middleware, generateRegistrationLink);
 
 

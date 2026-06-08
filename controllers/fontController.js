@@ -1,6 +1,6 @@
 import prisma from "../config/prisma.js";
 
-const fontSelect = { id: true, name: true, google_font_url: true, preview: true };
+const fontSelect = { id: true, name: true, google_font_url: true, preview: true, status: true, created_at: true };
 
 // Admin: list all fonts
 export const listFonts = async (req, res) => {
@@ -11,7 +11,7 @@ export const listFonts = async (req, res) => {
         const skip = (pageNum - 1) * limitNum;
 
         const where = {
-            status: 0,
+            status: { not: 2 },
             ...(search && { name: { contains: search } })
         };
 
@@ -39,6 +39,51 @@ export const addFont = async (req, res) => {
             data: { name, google_font_url: google_font_url || null, status: 0 }
         });
         res.status(201).json({ success: true, message: "Font added", data: font });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// Admin: edit font (name and/or google_font_url)
+export const editFont = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, google_font_url } = req.body;
+
+        if (!name && google_font_url === undefined) {
+            return res.status(400).json({ success: false, message: "At least one field (name or google_font_url) is required" });
+        }
+
+        const font = await prisma.font.findUnique({ where: { id: parseInt(id) } });
+
+        if (!font) {
+            return res.status(404).json({ success: false, message: "Font not found" });
+        }
+
+        if (font.status === 2) {
+            return res.status(400).json({ success: false, message: "Cannot edit a deleted font" });
+        }
+
+        // Check duplicate name (exclude current font)
+        if (name && name !== font.name) {
+            const duplicate = await prisma.font.findFirst({
+                where: { name, NOT: { id: parseInt(id) } }
+            });
+            if (duplicate) {
+                return res.status(409).json({ success: false, message: "Another font with this name already exists" });
+            }
+        }
+
+        const updated = await prisma.font.update({
+            where: { id: parseInt(id) },
+            data: {
+                ...(name && { name }),
+                ...(google_font_url !== undefined && { google_font_url: google_font_url || null })
+            },
+            select: fontSelect
+        });
+
+        res.json({ success: true, message: `Font updated successfully`, data: updated });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }
@@ -126,6 +171,38 @@ export const permanentDeleteFont = async (req, res) => {
         res.json({ 
             success: true, 
             message: `Font "${font.name}" has been permanently deleted` 
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// Admin: toggle font active (0) / inactive (1)
+export const toggleFontStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const font = await prisma.font.findUnique({
+            where: { id: parseInt(id) }
+        });
+
+        if (!font) {
+            return res.status(404).json({ success: false, message: "Font not found" });
+        }
+
+        if (font.status === 2) {
+            return res.status(400).json({ success: false, message: "Deleted font status cannot be changed" });
+        }
+
+        const updatedFont = await prisma.font.update({
+            where: { id: parseInt(id) },
+            data: { status: font.status === 1 ? 0 : 1 }
+        });
+
+        res.json({
+            success: true,
+            message: `Font "${font.name}" is now ${updatedFont.status === 0 ? 'active' : 'inactive'}`,
+            data: updatedFont
         });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
