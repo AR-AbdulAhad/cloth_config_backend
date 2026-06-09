@@ -894,12 +894,12 @@ export const permanentDeleteStudent = async (req, res) => {
         }
 
         // Must be disabled (status=1) before permanent delete
-        if (student.status !== 1) {
-            return res.status(400).json({
-                success: false,
-                message: "Student must be disabled first before permanent deletion. Use the disable endpoint first."
-            });
-        }
+        // if (student.status !== 1) {
+        //     return res.status(400).json({
+        //         success: false,
+        //         message: "Student must be disabled first before permanent deletion. Use the disable endpoint first."
+        //     });
+        // }
 
         // Block if student has any paid orders — cannot erase payment records
         const paidOrders = student.orders.filter(o =>

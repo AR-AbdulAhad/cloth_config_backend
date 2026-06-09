@@ -400,7 +400,7 @@ export const sendInquiry = async (req, res) => {
 <h2>Kære ${name}</h2>
 
 <p>Tak for din henvendelse.</p>
-<p>Vi har modtaget din forespørgsel og vender tilbage hurtigst muligt.</p>
+<p>Vi har modtaget din forespørgsel og vender tilbage inden for 2-3 hverdage.</p>
 
 <h3>Din besked</h3>
 <p>${message.replace(/\n/g, "<br>")}</p>

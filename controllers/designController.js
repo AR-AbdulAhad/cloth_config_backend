@@ -28,12 +28,13 @@ import { sendBackDesignUploadNotificationEmail, getAdminNotificationEmails } fro
 export const uploadClassBackDesign = async (req, res) => {
     try {
         const classId = req.user.class_id;
-        const { name, isFromConfigurator, designColor } = req.body;
+        const { name, isFromConfigurator, designColor, forAllStudents } = req.body;
 
         if (!classId) return res.status(400).json({ success: false, message: "User not assigned to any class" });
         if (!req.file) return res.status(400).json({ success: false, message: "No file uploaded" });
 
         const isConfigurator = isFromConfigurator === 'true' || isFromConfigurator === true;
+        const shareWithAll   = forAllStudents === 'true' || forAllStudents === true;
 
         // Validate designColor if provided
         if (designColor && !['white', 'black', 'normal'].includes(designColor.toLowerCase())) {
@@ -49,7 +50,7 @@ export const uploadClassBackDesign = async (req, res) => {
                 where: {
                     class_id: parseInt(classId),
                     isFromConfigurator: true,
-                    status: { not: 2 } // rejected designs ko ignore karo
+                    status: { not: 2 }
                 }
             });
 
@@ -62,12 +63,24 @@ export const uploadClassBackDesign = async (req, res) => {
             }
         }
 
+        // If forAllStudents is true, fetch the class's country_id to link to library
+        let libraryCountryId = null;
+        if (shareWithAll) {
+            const classData = await prisma.classes.findUnique({
+                where: { id: parseInt(classId) },
+                select: { country_id: true }
+            });
+            libraryCountryId = classData?.country_id || null;
+        }
+
         const design = await prisma.backDesign.create({
             data: {
                 class_id: parseInt(classId),
                 name: name || `back_design_${Date.now()}`,
                 file_path: req.file.path,
-                is_library: false,
+                is_library: shareWithAll,          // true = visible in country library
+                forAllStudents: shareWithAll,
+                country_id: shareWithAll ? libraryCountryId : null,
                 process_status: 'uploaded',
                 status: 1,
                 isFromConfigurator: isConfigurator,
@@ -77,7 +90,6 @@ export const uploadClassBackDesign = async (req, res) => {
 
         // Send notification email to admin(s)
         try {
-            // Get class, school and user info for notification
             const [classInfo, user, adminEmails] = await Promise.all([
                 prisma.classes.findUnique({
                     where: { id: parseInt(classId) },
@@ -90,7 +102,6 @@ export const uploadClassBackDesign = async (req, res) => {
                 getAdminNotificationEmails()
             ]);
 
-            // Send notification to all admins
             const notificationPromises = adminEmails.map(adminEmail =>
                 sendBackDesignUploadNotificationEmail({
                     adminEmail,
@@ -106,10 +117,15 @@ export const uploadClassBackDesign = async (req, res) => {
             await Promise.allSettled(notificationPromises);
         } catch (emailError) {
             console.error('Failed to send back design upload notification:', emailError.message);
-            // Don't fail the upload if email fails
         }
 
-        res.json({ success: true, message: "Back design uploaded", data: design });
+        res.json({
+            success: true,
+            message: shareWithAll
+                ? "Back design uploaded and added to country library"
+                : "Back design uploaded",
+            data: design
+        });
     } catch (err) {
         console.error(err);
         res.status(500).json({ success: false, error: err.message });
@@ -118,13 +134,14 @@ export const uploadClassBackDesign = async (req, res) => {
 export const reUploadClassBackDesign = async (req, res) => {
     try {
         const classId = req.user.class_id;
-        const { name, isFromConfigurator, designColor, configurator_state } = req.body;
+        const { name, isFromConfigurator, designColor, configurator_state, forAllStudents } = req.body;
         const designId = req.params.id;
 
         if (!classId) return res.status(400).json({ success: false, message: "User not assigned to any class" });
         if (!req.file) return res.status(400).json({ success: false, message: "No file uploaded" });
 
         const isConfigurator = isFromConfigurator === 'true' || isFromConfigurator === true;
+        const shareWithAll   = forAllStudents === 'true' || forAllStudents === true;
 
         if (designColor && !['white', 'black'].includes(designColor.toLowerCase())) {
             return res.status(400).json({ success: false, message: "Invalid design color. Only 'white' or 'black' are allowed." });
@@ -140,13 +157,25 @@ export const reUploadClassBackDesign = async (req, res) => {
             }
         }
 
+        // If forAllStudents is true, fetch the class's country_id
+        let libraryCountryId = null;
+        if (shareWithAll) {
+            const classData = await prisma.classes.findUnique({
+                where: { id: parseInt(classId) },
+                select: { country_id: true }
+            });
+            libraryCountryId = classData?.country_id || null;
+        }
+
         const design = await prisma.backDesign.update({
             where: { id: parseInt(designId) },
             data: {
                 class_id: parseInt(classId),
                 name: name || `back_design_${Date.now()}`,
                 file_path: req.file.path,
-                is_library: false,
+                is_library: shareWithAll,
+                forAllStudents: shareWithAll,
+                country_id: shareWithAll ? libraryCountryId : null,
                 process_status: 'uploaded',
                 status: 1,
                 isFromConfigurator: isConfigurator,
@@ -160,7 +189,7 @@ export const reUploadClassBackDesign = async (req, res) => {
         console.error(err);
         res.status(500).json({ success: false, error: err.message });
     }
-};;
+};
 
 export const listBackDesigns = async (req, res) => {
     try {

@@ -180,6 +180,7 @@ model BackDesign {
   name                String       @db.VarChar(255)
   file_path           String       @db.VarChar(255)
   is_library          Boolean      @default(false)
+  forAllStudents      Boolean      @default(false)
   process_status      DesignStatus @default(uploaded)
   admin_comment       String?      @db.Text
   status              Int          @default(0)
