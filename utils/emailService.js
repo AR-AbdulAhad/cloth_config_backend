@@ -402,3 +402,107 @@ export const getAdminNotificationEmails = async () => {
         return [];
     }
 };
+
+// ─────────────────────────────────────────────
+// Logo approved / rejected — Danish email to uploader
+// ─────────────────────────────────────────────
+export const sendLogoStatusEmail = async ({ email, uploaderName, logoName, status, adminComment }) => {
+    const approved = status === 'approved';
+
+    const html = `<!DOCTYPE html>
+<html>
+<body style="font-family:Arial,sans-serif; margin:0; padding:0; background:#fff; color:#333;">
+
+<div style="text-align:center; padding:20px;">
+    <img src="https://cloth.studentlife.dk/assets/StudentLife-BHQG9Jkp.jpg" style="max-width:200px;" alt="StudentLife">
+</div>
+
+<div style="max-width:700px; margin:auto; padding:20px;">
+
+    <h2 style="color:${approved ? '#006d75' : '#c0392b'};">
+        ${approved ? '✅ Dit logo er godkendt' : '❌ Dit logo er afvist'}
+    </h2>
+
+    <p>Kære <strong>${uploaderName}</strong>,</p>
+
+    <p>
+        ${approved
+            ? `Vi er glade for at meddele, at dit logo <strong>"${logoName}"</strong> er blevet <strong>godkendt</strong> af vores team og er nu tilgængeligt til brug.`
+            : `Vi skal desværre meddele, at dit logo <strong>"${logoName}"</strong> er blevet <strong>afvist</strong> af vores team.`
+        }
+    </p>
+
+    ${!approved && adminComment ? `
+    <div style="background:#fff3f3; border-left:4px solid #c0392b; padding:12px 16px; margin:16px 0;">
+        <strong>Begrundelse:</strong><br/>
+        ${adminComment}
+    </div>` : ''}
+
+    ${!approved ? `<p>Du er velkommen til at uploade et nyt logo, som overholder vores retningslinjer.</p>` : ''}
+
+    <p>Har du spørgsmål, er du altid velkommen til at kontakte os på <a href="mailto:info@studentlife.dk">info@studentlife.dk</a>.</p>
+
+    <p>Med venlig hilsen<br/>StudentLife</p>
+
+</div>
+</body>
+</html>`;
+
+    const subject = approved
+        ? `Dit logo "${logoName}" er godkendt – StudentLife`
+        : `Dit logo "${logoName}" er afvist – StudentLife`;
+
+    return sendEmail(email, subject, html);
+};
+
+// ─────────────────────────────────────────────
+// Back design approved / rejected — Danish email to uploader
+// ─────────────────────────────────────────────
+export const sendBackDesignStatusEmail = async ({ email, uploaderName, designName, status, adminComment }) => {
+    const approved = status === 'approved';
+
+    const html = `<!DOCTYPE html>
+<html>
+<body style="font-family:Arial,sans-serif; margin:0; padding:0; background:#fff; color:#333;">
+
+<div style="text-align:center; padding:20px;">
+    <img src="https://cloth.studentlife.dk/assets/StudentLife-BHQG9Jkp.jpg" style="max-width:200px;" alt="StudentLife">
+</div>
+
+<div style="max-width:700px; margin:auto; padding:20px;">
+
+    <h2 style="color:${approved ? '#006d75' : '#c0392b'};">
+        ${approved ? '✅ Dit design er godkendt' : '❌ Dit design er afvist'}
+    </h2>
+
+    <p>Kære <strong>${uploaderName}</strong>,</p>
+
+    <p>
+        ${approved
+            ? `Vi er glade for at meddele, at dit ryg-design <strong>"${designName}"</strong> er blevet <strong>godkendt</strong> af vores team og er nu tilgængeligt til brug.`
+            : `Vi skal desværre meddele, at dit ryg-design <strong>"${designName}"</strong> er blevet <strong>afvist</strong> af vores team.`
+        }
+    </p>
+
+    ${!approved && adminComment ? `
+    <div style="background:#fff3f3; border-left:4px solid #c0392b; padding:12px 16px; margin:16px 0;">
+        <strong>Begrundelse:</strong><br/>
+        ${adminComment}
+    </div>` : ''}
+
+    ${!approved ? `<p>Du er velkommen til at uploade et nyt design, som overholder vores retningslinjer.</p>` : ''}
+
+    <p>Har du spørgsmål, er du altid velkommen til at kontakte os på <a href="mailto:info@studentlife.dk">info@studentlife.dk</a>.</p>
+
+    <p>Med venlig hilsen<br/>StudentLife</p>
+
+</div>
+</body>
+</html>`;
+
+    const subject = approved
+        ? `Dit design "${designName}" er godkendt – StudentLife`
+        : `Dit design "${designName}" er afvist – StudentLife`;
+
+    return sendEmail(email, subject, html);
+};

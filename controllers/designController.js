@@ -1,5 +1,5 @@
 import prisma from "../config/prisma.js";
-import { sendBackDesignUploadNotificationEmail, getAdminNotificationEmails } from "../utils/emailService.js";
+import { sendBackDesignUploadNotificationEmail, getAdminNotificationEmails, sendBackDesignStatusEmail } from "../utils/emailService.js";
 
 // export const uploadClassBackDesign = async (req, res) => {
 //     try {
@@ -34,7 +34,7 @@ export const uploadClassBackDesign = async (req, res) => {
         if (!req.file) return res.status(400).json({ success: false, message: "No file uploaded" });
 
         const isConfigurator = isFromConfigurator === 'true' || isFromConfigurator === true;
-        const shareWithAll   = forAllStudents === 'true' || forAllStudents === true;
+        const shareWithAll = forAllStudents === 'true' || forAllStudents === true;
 
         // Validate designColor if provided
         if (designColor && !['white', 'black', 'normal'].includes(designColor.toLowerCase())) {
@@ -141,7 +141,7 @@ export const reUploadClassBackDesign = async (req, res) => {
         if (!req.file) return res.status(400).json({ success: false, message: "No file uploaded" });
 
         const isConfigurator = isFromConfigurator === 'true' || isFromConfigurator === true;
-        const shareWithAll   = forAllStudents === 'true' || forAllStudents === true;
+        const shareWithAll = forAllStudents === 'true' || forAllStudents === true;
 
         if (designColor && !['white', 'black'].includes(designColor.toLowerCase())) {
             return res.status(400).json({ success: false, message: "Invalid design color. Only 'white' or 'black' are allowed." });
@@ -305,10 +305,45 @@ export const getConfiguratorBackDesign = async (req, res) => {
 export const approveBackDesign = async (req, res) => {
     try {
         const { id } = req.params;
+
+        const design = await prisma.backDesign.findUnique({
+            where: { id: parseInt(id) },
+            include: {
+                class: {
+                    include: {
+                        users: {
+                            where: { role: 'class_representative', status: { not: 2 } },
+                            select: { name: true, email: true },
+                            take: 1
+                        }
+                    }
+                }
+            }
+        });
+
+        if (!design) return res.status(404).json({ success: false, message: "Back design not found" });
+
         await prisma.backDesign.update({
             where: { id: parseInt(id) },
             data: { process_status: 'approved', status: 0 }
         });
+
+        // Send approval email to class rep
+        try {
+            const classRep = design.class?.users?.[0];
+            if (classRep?.email) {
+                await sendBackDesignStatusEmail({
+                    email: classRep.email,
+                    uploaderName: classRep.name,
+                    designName: design.name,
+                    status: 'approved',
+                    adminComment: null
+                });
+            }
+        } catch (emailErr) {
+            console.error('Back design approval email failed:', emailErr.message);
+        }
+
         res.json({ success: true, message: "Back design approved" });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
@@ -319,10 +354,46 @@ export const rejectBackDesign = async (req, res) => {
     try {
         const { id } = req.params;
         const { comment, reason } = req.body;
+        const adminComment = comment || reason || null;
+
+        const design = await prisma.backDesign.findUnique({
+            where: { id: parseInt(id) },
+            include: {
+                class: {
+                    include: {
+                        users: {
+                            where: { role: 'class_representative', status: { not: 2 } },
+                            select: { name: true, email: true },
+                            take: 1
+                        }
+                    }
+                }
+            }
+        });
+
+        if (!design) return res.status(404).json({ success: false, message: "Back design not found" });
+
         await prisma.backDesign.update({
             where: { id: parseInt(id) },
-            data: { process_status: 'rejected', status: 2, admin_comment: comment || reason || null }
+            data: { process_status: 'rejected', status: 2, admin_comment: adminComment }
         });
+
+        // Send rejection email to class rep
+        try {
+            const classRep = design.class?.users?.[0];
+            if (classRep?.email) {
+                await sendBackDesignStatusEmail({
+                    email: classRep.email,
+                    uploaderName: classRep.name,
+                    designName: design.name,
+                    status: 'rejected',
+                    adminComment
+                });
+            }
+        } catch (emailErr) {
+            console.error('Back design rejection email failed:', emailErr.message);
+        }
+
         res.json({ success: true, message: "Back design rejected" });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
@@ -375,7 +446,7 @@ export const getStudyTripCountries = async (req, res) => {
 // Admin: upload a library design with country_id
 export const uploadLibraryDesign = async (req, res) => {
     try {
-        const { name, country_id } = req.body;
+        const { name, country_id, designColor } = req.body;
 
         if (!req.file) return res.status(400).json({ success: false, message: "No file uploaded" });
         if (!country_id) return res.status(400).json({ success: false, message: "country_id is required" });
@@ -389,6 +460,7 @@ export const uploadLibraryDesign = async (req, res) => {
                 file_path: req.file.path,
                 is_library: true,
                 country_id: parseInt(country_id),
+                designColor: designColor || null,
                 process_status: 'approved',
                 status: 0
             }
@@ -491,7 +563,7 @@ export const deleteMyBackDesign = async (req, res) => {
         if (!design) return res.status(404).json({ success: false, message: "Design not found" });
         if (design.class_id !== classId) return res.status(403).json({ success: false, message: "Unauthorized" });
 
-        await prisma.backDesign.update({ where: { id: parseInt(designId) }, data: { status: 2 } });
+        await prisma.backDesign.delete({ where: { id: parseInt(designId) } });
         res.json({ success: true, message: "Back design deleted" });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });

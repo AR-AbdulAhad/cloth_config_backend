@@ -1,6 +1,6 @@
 import prisma from "../config/prisma.js";
 import { handlePrismaError } from "../utils/errorHandler.js";
-import { sendLogoUploadNotificationEmail, getAdminNotificationEmails } from "../utils/emailService.js";
+import { sendLogoUploadNotificationEmail, getAdminNotificationEmails, sendLogoStatusEmail } from "../utils/emailService.js";
 
 export const uploadSchoolLogo = async (req, res) => {
     try {
@@ -110,10 +110,32 @@ export const listMyLogos = async (req, res) => {
 export const approveLogo = async (req, res) => {
     try {
         const { logoId } = req.params;
+
+        const logo = await prisma.logo.findUnique({
+            where: { id: parseInt(logoId) },
+            include: { user: { select: { name: true, email: true } } }
+        });
+
+        if (!logo) return res.status(404).json({ success: false, message: "Logo not found" });
+
         await prisma.logo.update({
             where: { id: parseInt(logoId) },
             data: { process_status: 'approved', status: 0 }
         });
+
+        // Send approval email to uploader
+        try {
+            await sendLogoStatusEmail({
+                email: logo.user.email,
+                uploaderName: logo.user.name,
+                logoName: logo.name,
+                status: 'approved',
+                adminComment: null
+            });
+        } catch (emailErr) {
+            console.error('Logo approval email failed:', emailErr.message);
+        }
+
         res.json({ success: true, message: "Logo approved" });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
@@ -124,10 +146,33 @@ export const rejectLogo = async (req, res) => {
     try {
         const { logoId } = req.params;
         const { comment, reason } = req.body;
+        const adminComment = comment || reason || null;
+
+        const logo = await prisma.logo.findUnique({
+            where: { id: parseInt(logoId) },
+            include: { user: { select: { name: true, email: true } } }
+        });
+
+        if (!logo) return res.status(404).json({ success: false, message: "Logo not found" });
+
         await prisma.logo.update({
             where: { id: parseInt(logoId) },
-            data: { process_status: 'rejected', status: 2, admin_comment: comment || reason || null }
+            data: { process_status: 'rejected', status: 2, admin_comment: adminComment }
         });
+
+        // Send rejection email to uploader
+        try {
+            await sendLogoStatusEmail({
+                email: logo.user.email,
+                uploaderName: logo.user.name,
+                logoName: logo.name,
+                status: 'rejected',
+                adminComment
+            });
+        } catch (emailErr) {
+            console.error('Logo rejection email failed:', emailErr.message);
+        }
+
         res.json({ success: true, message: "Logo rejected" });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
