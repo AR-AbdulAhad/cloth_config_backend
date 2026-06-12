@@ -88,12 +88,12 @@ export const uploadClassBackDesign = async (req, res) => {
             }
         });
 
-        // Send notification email to admin(s)
+        // Send notification email to admins + all class reps of this school
         try {
-            const [classInfo, user, adminEmails] = await Promise.all([
+            const [classInfo, uploader, adminEmails] = await Promise.all([
                 prisma.classes.findUnique({
                     where: { id: parseInt(classId) },
-                    include: { school: { select: { name: true } } }
+                    include: { school: { select: { id: true, name: true } } }
                 }),
                 prisma.user.findUnique({
                     where: { id: req.user.id },
@@ -102,19 +102,28 @@ export const uploadClassBackDesign = async (req, res) => {
                 getAdminNotificationEmails()
             ]);
 
-            const notificationPromises = adminEmails.map(adminEmail =>
-                sendBackDesignUploadNotificationEmail({
-                    adminEmail,
-                    designName: design.name,
-                    className: classInfo?.name || 'Unknown Class',
-                    schoolName: classInfo?.school?.name || 'Unknown School',
-                    classRepName: user?.name || 'Unknown User',
-                    classRepEmail: user?.email || 'Unknown Email',
-                    designId: design.id
-                })
-            );
+            const schoolId = classInfo?.school?.id;
+            const schoolClassReps = schoolId ? await prisma.user.findMany({
+                where: { school_id: schoolId, role: 'class_representative', status: { not: 2 } },
+                select: { email: true }
+            }) : [];
 
-            await Promise.allSettled(notificationPromises);
+            const crEmails = schoolClassReps.map(u => u.email);
+            const allRecipients = [...new Set([...adminEmails, ...crEmails])];
+
+            await Promise.allSettled(
+                allRecipients.map(recipientEmail =>
+                    sendBackDesignUploadNotificationEmail({
+                        recipientEmail,
+                        designName: design.name,
+                        className: classInfo?.name || 'Unknown Class',
+                        schoolName: classInfo?.school?.name || 'Unknown School',
+                        uploaderName: uploader?.name || 'Unknown',
+                        uploaderEmail: uploader?.email || '',
+                        designId: design.id
+                    })
+                )
+            );
         } catch (emailError) {
             console.error('Failed to send back design upload notification:', emailError.message);
         }

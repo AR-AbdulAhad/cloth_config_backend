@@ -10,11 +10,12 @@ import { listSchoolLogos, approveLogo, rejectLogo, adminUploadLogo, adminUploadB
 import { listBackDesigns, approveBackDesign, rejectBackDesign, getClassBackDesigns, uploadLibraryDesign, getLibraryDesignsByCountry, getStudyTripCountries, adminDeleteBackDesign, adminPermanentDeleteBackDesign, adminDeleteLibraryDesign, adminPermanentDeleteLibraryDesign } from "../controllers/designController.js";
 import { listCountries, addCountry, editCountry, removeCountry, permanentDeleteCountry, toggleCountryStatus } from "../controllers/countryController.js";
 import { listFonts, getActiveFonts, setNameListFont, addFont, removeFont, permanentDeleteFont, toggleFontStatus, editFont } from "../controllers/fontController.js";
-import { generateProductionFiles, listProductionPackages, sendClassStatusEmail, sendFollowUpToClass } from "../controllers/productionController.js";
+import { generateProductionFiles, generateOrderProductionFiles, listProductionPackages, sendClassStatusEmail, sendFollowUpToClass } from "../controllers/productionController.js";
 import { assignClassRep } from "../controllers/classController.js";
 import { studentLogin, getDashboardData, placeOrder, getMyOrder, getMyOrderHistory, deleteHistory, getMyProfile, updateMyProfile, getClassesBySchool, checkClassSignup, getStudentDetails, deleteStudent, permanentDeleteStudent, listAllStudents } from "../controllers/studentController.js";
 import { getDashboardStats, toggleEntityStatus, sendDeadlineReminder, testEmail, getClassStudents, getClassRep, getAllClassesWithStudentCount } from "../controllers/adminController.js";
 import { getSettings, updateSetting, updateSettings } from "../controllers/settingController.js";
+import { listShippingRates, getShippingRate, createShippingRate, updateShippingRate, toggleShippingRateStatus, deleteShippingRate } from "../controllers/shippingController.js";
 import { getClassNameList, approveNameList, rejectNameList, getAllNameList, unlockNameList } from "../controllers/nameListControllers.js";
 import { getAllOrders, getOrderDetails, getOrderHistory, unlockOrder, lockOrder, debugOrderHistory } from "../controllers/orderController.js";
 
@@ -135,6 +136,7 @@ router.delete("/student/:id/permanent-delete", adminMiddleware, permanentDeleteS
 
 // Production Packages
 router.post("/generate-files/:classId", adminMiddleware, generateProductionFiles);
+router.post("/generate-files/order/:orderId", adminMiddleware, generateOrderProductionFiles);
 router.post("/production-packages", adminMiddleware, listProductionPackages);
 
 // Email Actions
@@ -147,5 +149,13 @@ router.post("/test-email", adminMiddleware, testEmail);
 router.get("/settings", adminMiddleware, getSettings);
 router.put("/setting", adminMiddleware, updateSetting);
 router.put("/settings", adminMiddleware, updateSettings);
+
+// Shipping Rates
+router.get("/shipping-rates", adminMiddleware, listShippingRates);
+router.get("/shipping-rate/:id", adminMiddleware, getShippingRate);
+router.post("/shipping-rate/create", adminMiddleware, createShippingRate);
+router.put("/shipping-rate/:id/update", adminMiddleware, updateShippingRate);
+router.put("/shipping-rate/:id/toggle-status", adminMiddleware, toggleShippingRateStatus);
+router.delete("/shipping-rate/:id/delete", adminMiddleware, deleteShippingRate);
 
 export default router;

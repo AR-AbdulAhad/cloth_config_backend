@@ -30,31 +30,35 @@ export const uploadSchoolLogo = async (req, res) => {
             }
         });
 
-        // Send notification email to admin(s)
+        // Send notification email to admins + all class reps of this school
         try {
-            // Get school and user info for notification
-            const [school, user, adminEmails] = await Promise.all([
+            const [school, uploader, adminEmails, schoolClassReps] = await Promise.all([
                 prisma.school.findUnique({ where: { id: schoolId }, select: { name: true } }),
                 prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } }),
-                getAdminNotificationEmails()
+                getAdminNotificationEmails(),
+                prisma.user.findMany({
+                    where: { school_id: schoolId, role: 'class_representative', status: { not: 2 } },
+                    select: { email: true }
+                })
             ]);
 
-            // Send notification to all admins
-            const notificationPromises = adminEmails.map(adminEmail =>
-                sendLogoUploadNotificationEmail({
-                    adminEmail,
-                    logoName: logoName,
-                    schoolName: school?.name || 'Unknown School',
-                    classRepName: user?.name || 'Unknown User',
-                    classRepEmail: user?.email || 'Unknown Email',
-                    logoId: logo.id
-                })
-            );
+            const crEmails = schoolClassReps.map(u => u.email);
+            const allRecipients = [...new Set([...adminEmails, ...crEmails])];
 
-            await Promise.allSettled(notificationPromises);
+            await Promise.allSettled(
+                allRecipients.map(recipientEmail =>
+                    sendLogoUploadNotificationEmail({
+                        recipientEmail,
+                        logoName,
+                        schoolName: school?.name || 'Unknown School',
+                        uploaderName: uploader?.name || 'Unknown',
+                        uploaderEmail: uploader?.email || '',
+                        logoId: logo.id
+                    })
+                )
+            );
         } catch (emailError) {
             console.error('Failed to send logo upload notification:', emailError.message);
-            // Don't fail the upload if email fails
         }
 
         res.json({ success: true, message: "Logo uploaded successfully", data: logo });

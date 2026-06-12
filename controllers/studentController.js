@@ -25,7 +25,7 @@ export const studentLogin = async (req, res) => {
                 message: "Invalid email or password"
             });
         }
-        if (user.role === "admin" || user.role === "class_representative") {
+        if (user.role === "admin") {
             return res.status(404).json({
                 success: false,
                 message: "Invalid email or password"
@@ -469,6 +469,63 @@ export const placeOrder = async (req, res) => {
                 console.error("Order confirmation email failed:", emailErr.message);
             }
         }
+
+        // --- Auto-generate production files in background (non-blocking) ---
+        setImmediate(async () => {
+            try {
+                const { generatePDF } = await import("../utils/pdfGenerator.js");
+                const { generateExcel } = await import("../utils/excelGenerator.js");
+
+                const order = await prisma.order.findUnique({
+                    where: { id: finalOrderId },
+                    include: {
+                        student:     { select: { name: true, email: true } },
+                        class:       { select: { id: true, name: true } },
+                        logo:        { select: { file_path: true } },
+                        order_items: { where: { status: { not: 2 } } }
+                    }
+                });
+
+                if (!order || order.order_items.length === 0) return;
+
+                const nameList = await prisma.nameList.findFirst({
+                    where: { class_id: order.class.id },
+                    include: { items: { orderBy: { position: 'asc' } } }
+                });
+
+                const results = order.order_items.map(item => ({
+                    class_name:    order.class.name,
+                    student_name:  order.student.name,
+                    student_email: order.student.email,
+                    product_type:  item.product_type,
+                    color:         item.selectedColor,
+                    size:          item.selectedSize,
+                    design_config: item.design_config,
+                    logo_path:     order.logo?.file_path || null,
+                    name_list:     nameList?.items.map(ni => ni.name).join(', ') || null
+                }));
+
+                const pkg = await prisma.productionPackage.create({
+                    data: {
+                        class_id:          order.class.id,
+                        package_name:      `Order_${finalOrderId}_${order.student.name}_${Date.now()}`,
+                        production_status: "processing"
+                    }
+                });
+
+                const [pdfPath, excelPath] = await Promise.all([
+                    generatePDF(results),
+                    generateExcel(results)
+                ]);
+
+                await prisma.productionPackage.update({
+                    where: { id: pkg.id },
+                    data: { pdf_file_path: pdfPath, excel_file_path: excelPath, production_status: "ready" }
+                });
+            } catch (prodErr) {
+                console.error("Auto production file generation failed:", prodErr.message);
+            }
+        });
 
         return res.json({
             success: true,

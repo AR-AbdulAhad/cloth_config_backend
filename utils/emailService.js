@@ -261,63 +261,59 @@ export const sendClassRepWelcomeEmail = async (email, joinLink) => {
 };
 
 export const sendLogoUploadNotificationEmail = async ({
-    adminEmail,
+    recipientEmail,
     logoName,
     schoolName,
-    classRepName,
-    classRepEmail,
+    uploaderName,
+    uploaderEmail,
     logoId
 }) => {
     const html = `
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:20px;">
+        <div style="text-align:center; padding-bottom:16px;">
+            <img src="https://cloth.studentlife.dk/assets/StudentLife-BHQG9Jkp.jpg" style="max-width:200px;" alt="StudentLife">
+        </div>
         <h2 style="color:#e67e22;">Ny logo upload-notifikation</h2>
 
         <p>Et nyt logo er blevet uploadet og kræver gennemgang.</p>
 
-        <div style="background:#f8f9fa;padding:15px;border-radius:5px;margin:15px 0;">
-            <h3 style="color:#006d75;margin-top:0;">Logodetaljer</h3>
-
-            <p><strong>Logo navn:</strong> ${logoName}</p>
-            <p><strong>Skole:</strong> ${schoolName}</p>
-            <p><strong>Status:</strong> Afventer gennemgang</p>
+        <div style="background:#f8f9fa;padding:15px;border-left:4px solid #e67e22;margin:15px 0;">
+            <p style="margin:4px 0;"><strong>Logo navn:</strong> ${logoName}</p>
+            <p style="margin:4px 0;"><strong>Skole:</strong> ${schoolName}</p>
+            <p style="margin:4px 0;"><strong>Uploadet af:</strong> ${uploaderName} (${uploaderEmail})</p>
+            <p style="margin:4px 0;"><strong>Status:</strong> Afventer gennemgang</p>
         </div>
 
         <hr style="margin:20px 0;"/>
-
-        <p style="font-size:12px;color:gray;">
-            StudentLife administrationsnotifikation
-        </p>
+        <p style="font-size:12px;color:gray;">StudentLife notifikation</p>
     </div>`;
 
-    return sendEmail(
-        adminEmail,
-        `Nyt logo upload: ${logoName} - ${schoolName}`,
-        html
-    );
+    return sendEmail(recipientEmail, `Nyt logo upload: ${logoName} – ${schoolName}`, html);
 };
 
-export const sendBackDesignUploadNotificationEmail = async ({ adminEmail, designName, className, schoolName, classRepName, classRepEmail, designId }) => {
+export const sendBackDesignUploadNotificationEmail = async ({ recipientEmail, designName, className, schoolName, uploaderName, uploaderEmail, designId }) => {
     const html = `
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:20px;">
-        <h2 >New Back Design Upload Notification</h2>
-        <p>A new back design has been uploaded and requires review.</p>
-        
-        <div style="background:#f8f9fa;padding:15px;border-radius:5px;margin:15px 0;">
-            <h3 style="color:#006d75;margin-top:0;">Design Details</h3>
-            <p><strong>Design Name:</strong> ${designName}</p>
-            <p><strong>Class:</strong> ${className}</p>
-            <p><strong>School:</strong> ${schoolName}</p>
-           
-            <p><strong>Status:</strong> Pending Review</p>
+        <div style="text-align:center; padding-bottom:16px;">
+            <img src="https://cloth.studentlife.dk/assets/StudentLife-BHQG9Jkp.jpg" style="max-width:200px;" alt="StudentLife">
+        </div>
+        <h2 style="color:#e67e22;">Nyt ryg-design upload-notifikation</h2>
+
+        <p>Et nyt ryg-design er blevet uploadet og kræver gennemgang.</p>
+
+        <div style="background:#f8f9fa;padding:15px;border-left:4px solid #e67e22;margin:15px 0;">
+            <p style="margin:4px 0;"><strong>Design navn:</strong> ${designName}</p>
+            <p style="margin:4px 0;"><strong>Klasse:</strong> ${className}</p>
+            <p style="margin:4px 0;"><strong>Skole:</strong> ${schoolName}</p>
+            <p style="margin:4px 0;"><strong>Uploadet af:</strong> ${uploaderName} (${uploaderEmail})</p>
+            <p style="margin:4px 0;"><strong>Status:</strong> Afventer gennemgang</p>
         </div>
 
-      
-
         <hr style="margin:20px 0;"/>
-        <p style="font-size:12px;color:gray;">StudentLife Admin Notification System</p>
+        <p style="font-size:12px;color:gray;">StudentLife notifikation</p>
     </div>`;
 
-    return sendEmail(adminEmail, `New Back Design Upload: ${designName} - ${className}`, html);
+    return sendEmail(recipientEmail, `Nyt ryg-design upload: ${designName} – ${className}`, html);
 };
 
 const sendTemplateEmail = async (template, userData, automationType) => {

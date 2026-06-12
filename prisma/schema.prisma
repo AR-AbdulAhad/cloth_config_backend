@@ -308,6 +308,22 @@ model Setting {
   @@map("settings")
 }
 
+model ShippingRate {
+  id           Int      @id @default(autoincrement())
+  country_name String   @db.VarChar(100)
+  country_code String?  @db.VarChar(10)
+  regular_delivery_rate         Decimal  @db.Decimal(10, 2)
+  express_delivery_rate         Decimal  @db.Decimal(10, 2)
+  currency     String   @default("DKK") @db.VarChar(10)
+  description  String?  @db.VarChar(255)
+  status       Int      @default(0)   // 0 = active, 1 = inactive
+  created_at   DateTime @default(now())
+  updated_at   DateTime @default(now()) @updatedAt
+
+  @@unique([country_name])
+  @@map("shipping_rates")
+}
+
 model Campaign {
   id            Int            @id @default(autoincrement())
   title         String         @db.VarChar(255)

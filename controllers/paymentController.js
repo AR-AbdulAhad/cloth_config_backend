@@ -212,8 +212,8 @@ export const createCheckoutSession = async (req, res) => {
             payment_method_types: ["card"],
             line_items,
             mode: "payment",
-            success_url: `${process.env.LIVE_FRONTEND_URL}/Clothing-Configurator/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-            cancel_url: `${process.env.LIVE_FRONTEND_URL}/Clothing-Configurator/payment-cancelled`,
+            success_url: `${process.env.LIVE_FRONTEND_URL}payment-success?session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${process.env.LIVE_FRONTEND_URL}payment-cancelled`,
             metadata: {
                 order_id: orderId.toString()
             },

@@ -3,6 +3,90 @@ import { generatePDF } from "../utils/pdfGenerator.js";
 import { generateExcel } from "../utils/excelGenerator.js";
 import { sendStatusEmail, sendFollowUpEmail } from "../utils/emailService.js";
 
+// ─────────────────────────────────────────────
+// Generate production files for a single order
+// POST /api/admin/generate-files/order/:orderId
+// ─────────────────────────────────────────────
+export const generateOrderProductionFiles = async (req, res) => {
+    const orderId = parseInt(req.params.orderId);
+    try {
+        const order = await prisma.order.findUnique({
+            where: { id: orderId },
+            include: {
+                student: { select: { name: true, email: true } },
+                class:   { select: { id: true, name: true } },
+                logo:    { select: { file_path: true } },
+                order_items: { where: { status: { not: 2 } } }
+            }
+        });
+
+        if (!order) {
+            return res.status(404).json({ success: false, message: "Order not found" });
+        }
+
+        if (order.order_items.length === 0) {
+            return res.status(400).json({ success: false, message: "Order has no items" });
+        }
+
+        // Name list for this class
+        const nameList = await prisma.nameList.findFirst({
+            where: { class_id: order.class.id },
+            include: { items: { orderBy: { position: 'asc' } } }
+        });
+
+        // Build rows — one row per order item
+        const results = order.order_items.map(item => ({
+            class_name:    order.class.name,
+            student_name:  order.student.name,
+            student_email: order.student.email,
+            product_type:  item.product_type,
+            color:         item.selectedColor,
+            size:          item.selectedSize,
+            design_config: item.design_config,
+            logo_path:     order.logo?.file_path || null,
+            name_list:     nameList?.items.map(ni => ni.name).join(', ') || null
+        }));
+
+        // Create package record
+        const pkg = await prisma.productionPackage.create({
+            data: {
+                class_id:         order.class.id,
+                package_name:     `Order_${orderId}_${order.student.name}_${Date.now()}`,
+                production_status: "processing"
+            }
+        });
+
+        // Generate PDF + Excel in parallel
+        const [pdfPath, excelPath] = await Promise.all([
+            generatePDF(results),
+            generateExcel(results)
+        ]);
+
+        await prisma.productionPackage.update({
+            where: { id: pkg.id },
+            data: {
+                pdf_file_path:    pdfPath,
+                excel_file_path:  excelPath,
+                production_status: "ready"
+            }
+        });
+
+        res.json({
+            success: true,
+            message: "Production files generated for order",
+            data: {
+                packageId: pkg.id,
+                orderId,
+                student:   order.student.name,
+                pdf:       pdfPath,
+                excel:     excelPath
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
 export const generateProductionFiles = async (req, res) => {
     const classId = parseInt(req.params.classId);
     try {

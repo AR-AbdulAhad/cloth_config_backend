@@ -5,6 +5,7 @@ import { placeOrder, getMyOrder, getMyOrderHistory, deleteHistory, getMyProfile,
 import { listSchoolLogos } from "../controllers/logoController.js";
 import { listBackDesigns, getConfiguratorBackDesign, listMyBackDesigns, getMyClassBackDesign, getStudyTripCountries, getLibraryDesignsByCountry } from "../controllers/designController.js";
 import { getSettings } from "../controllers/settingController.js";
+import { listShippingRates } from "../controllers/shippingController.js";
 import { listSchools } from "../controllers/schoolController.js";
 
 const router = express.Router();
@@ -23,6 +24,7 @@ router.post("/logos", studentAuth, listSchoolLogos);
 router.post("/class-back-designs", studentAuth, listBackDesigns);
 router.get("/configurator-back-design", studentAuth, getConfiguratorBackDesign);
 router.get("/settings", studentAuth, getSettings);
+router.get("/shipping-rates", studentAuth, listShippingRates);
 router.post("/schools", studentAuth, listSchools);
 router.post("/schools/:schoolId/classes", studentAuth, getClassesBySchool);
 
