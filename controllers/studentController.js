@@ -1083,3 +1083,63 @@ export const listAllStudents = async (req, res) => {
         res.status(500).json({ success: false, error: err.message });
     }
 };
+
+// ─────────────────────────────────────────────
+// Student: get their class student count
+// GET /api/student/my-class/student-count
+// ─────────────────────────────────────────────
+export const getMyClassStudentCount = async (req, res) => {
+    try {
+        const classId = req.user.class_id;
+
+        if (!classId) {
+            return res.status(400).json({ success: false, message: "You are not assigned to any class" });
+        }
+
+        const [classInfo, totalStudents, studentsWithOrders] = await Promise.all([
+            prisma.classes.findUnique({
+                where: { id: classId },
+                select: {
+                    id: true,
+                    name: true,
+                    graduation_year: true,
+                    expected_students: true
+                }
+            }),
+            prisma.user.count({
+                where: {
+                    class_id: classId,
+                    role: 'student',
+                    status: { not: 2 }
+                }
+            }),
+            prisma.order.count({
+                where: {
+                    class_id: classId,
+                    status: { not: 2 }
+                }
+            })
+        ]);
+
+        if (!classInfo) {
+            return res.status(404).json({ success: false, message: "Class not found" });
+        }
+
+        res.json({
+            success: true,
+            data: {
+                class_id:          classInfo.id,
+                class_name:        classInfo.name,
+                graduation_year:   classInfo.graduation_year,
+                expected_students: classInfo.expected_students || 0,
+                registered_students: totalStudents,
+                students_with_orders: studentsWithOrders,
+                completion_percentage: classInfo.expected_students > 0
+                    ? Math.round((studentsWithOrders / classInfo.expected_students) * 100)
+                    : 0
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};

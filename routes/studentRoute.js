@@ -1,7 +1,7 @@
 import express from "express";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { getConfiguratorData, resetOrder, createFreshOrder } from "../controllers/orderController.js";
-import { placeOrder, getMyOrder, getMyOrderHistory, deleteHistory, getMyProfile, updateMyProfile, getClassesBySchool, checkClassSignup } from "../controllers/studentController.js";
+import { placeOrder, getMyOrder, getMyOrderHistory, deleteHistory, getMyProfile, updateMyProfile, getClassesBySchool, checkClassSignup, getMyClassStudentCount } from "../controllers/studentController.js";
 import { listSchoolLogos } from "../controllers/logoController.js";
 import { listBackDesigns, getConfiguratorBackDesign, listMyBackDesigns, getMyClassBackDesign, getStudyTripCountries, getLibraryDesignsByCountry } from "../controllers/designController.js";
 import { getSettings } from "../controllers/settingController.js";
@@ -34,6 +34,7 @@ router.get("/library-designs", studentAuth, getLibraryDesignsByCountry);
 
 // Check if student's class is signed up (for "Upload own design" button)
 router.get("/check-class-signup", studentAuth, checkClassSignup);
+router.get("/my-class/student-count", studentAuth, getMyClassStudentCount);
 
 // New routes for order reset functionality
 router.post("/reset-order/:orderId", studentAuth, resetOrder);

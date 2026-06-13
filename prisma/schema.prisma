@@ -185,7 +185,7 @@ model BackDesign {
   admin_comment       String?      @db.Text
   status              Int          @default(0)
   isFromConfigurator  Boolean      @default(false)
-  designColor         String?      @db.VarChar(20)
+  designColor         String?      @default("white") @db.VarChar(20)
   configurator_state  Json?
   created_at          DateTime     @default(now())
 
