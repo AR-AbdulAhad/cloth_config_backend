@@ -6,8 +6,8 @@ import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { addSchool, listSchools, editSchool, removeSchool, getSchoolStats, getSchoolClasses } from "../controllers/schoolController.js";
 import { addClassRep, listClassReps, editClassRep, removeClassRep, adminResetPassword } from "../controllers/userController.js";
 import { addClass, editClass, removeClass, listAllClasses, toggleClassStatus, lockClass, unlockClass, updateClassProcessStatus, setExpectedStudentCount, getStudentCount } from "../controllers/classController.js";
-import { listSchoolLogos, approveLogo, rejectLogo, adminUploadLogo, adminUploadBackDesign, adminDeleteLogo, adminPermanentDeleteLogo } from "../controllers/logoController.js";
-import { listBackDesigns, approveBackDesign, rejectBackDesign, getClassBackDesigns, uploadLibraryDesign, getLibraryDesignsByCountry, getStudyTripCountries, adminDeleteBackDesign, adminPermanentDeleteBackDesign, adminDeleteLibraryDesign, adminPermanentDeleteLibraryDesign } from "../controllers/designController.js";
+import { listSchoolLogos, approveLogo, rejectLogo, adminUploadLogo, adminUploadBackDesign, adminDeleteLogo, adminPermanentDeleteLogo, adminEditLogo } from "../controllers/logoController.js";
+import { listBackDesigns, approveBackDesign, rejectBackDesign, getClassBackDesigns, uploadLibraryDesign, getLibraryDesignsByCountry, getStudyTripCountries, adminDeleteBackDesign, adminPermanentDeleteBackDesign, adminDeleteLibraryDesign, adminPermanentDeleteLibraryDesign, adminEditBackDesign } from "../controllers/designController.js";
 import { listCountries, addCountry, editCountry, removeCountry, permanentDeleteCountry, toggleCountryStatus } from "../controllers/countryController.js";
 import { listFonts, getActiveFonts, setNameListFont, addFont, removeFont, permanentDeleteFont, toggleFontStatus, editFont } from "../controllers/fontController.js";
 import { generateProductionFiles, generateOrderProductionFiles, listProductionPackages, sendClassStatusEmail, sendFollowUpToClass } from "../controllers/productionController.js";
@@ -76,6 +76,7 @@ router.post("/logos", adminMiddleware, listSchoolLogos);
 router.put("/approve-logo/:logoId", adminMiddleware, approveLogo);
 router.put("/reject-logo/:logoId", adminMiddleware, rejectLogo);
 router.post("/logo/upload", adminMiddleware, uploadAdminLogo.single("logo"), adminUploadLogo);
+router.put("/logo/:logoId/edit", adminMiddleware, adminEditLogo);
 router.delete("/logo/:logoId/delete", adminMiddleware, adminDeleteLogo);
 router.delete("/logo/:logoId/permanent-delete", adminMiddleware, adminPermanentDeleteLogo);
 
@@ -100,8 +101,15 @@ router.post("/back-designs", adminMiddleware, listBackDesigns);
 router.get("/class/:classId/back-designs", adminMiddleware, getClassBackDesigns);
 router.put("/approve-back-design/:id", adminMiddleware, approveBackDesign);
 router.put("/reject-back-design/:id", adminMiddleware, rejectBackDesign);
-router.post("/back-design/upload", adminMiddleware, uploadLibrary.single("design"), adminUploadBackDesign);
-router.post("/library-design/upload", adminMiddleware, uploadLibrary.single("design"), uploadLibraryDesign);
+router.put("/back-design/:designId/edit", adminMiddleware, adminEditBackDesign);
+router.post("/back-design/upload", adminMiddleware, uploadLibrary.fields([
+    { name: "design", maxCount: 1 },
+    { name: "design_2", maxCount: 1 }
+]), adminUploadBackDesign);
+router.post("/library-design/upload", adminMiddleware, uploadLibrary.fields([
+    { name: "design", maxCount: 1 },
+    { name: "design_2", maxCount: 1 }
+]), uploadLibraryDesign);
 router.get("/library-designs", adminMiddleware, getLibraryDesignsByCountry);
 router.get("/study-trip-countries", adminMiddleware, getStudyTripCountries);
 router.delete("/back-design/:designId/delete", adminMiddleware, adminDeleteBackDesign);

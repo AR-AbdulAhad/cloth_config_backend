@@ -28,32 +28,32 @@ import { sendBackDesignUploadNotificationEmail, getAdminNotificationEmails, send
 export const uploadClassBackDesign = async (req, res) => {
     try {
         const classId = req.user.class_id;
-        const { name, isFromConfigurator, designColor, forAllStudents } = req.body;
+        const { name, isFromConfigurator, designColor, designColor_2, forAllStudents } = req.body;
 
         if (!classId) return res.status(400).json({ success: false, message: "User not assigned to any class" });
-        if (!req.file) return res.status(400).json({ success: false, message: "No file uploaded" });
+
+        const file1 = req.files?.['backDesign']?.[0];
+        const file2 = req.files?.['backDesign_2']?.[0];
+        if (!file1) return res.status(400).json({ success: false, message: "backDesign (first file) is required" });
+        if (!file2) return res.status(400).json({ success: false, message: "backDesign_2 (second file) is required" });
+        if (!designColor) return res.status(400).json({ success: false, message: "designColor is required" });
+        if (!designColor_2) return res.status(400).json({ success: false, message: "designColor_2 is required" });
+
+        const validColors = ['white', 'black', 'normal'];
+        if (!validColors.includes(designColor.toLowerCase())) {
+            return res.status(400).json({ success: false, message: "designColor must be 'white', 'black', or 'normal'" });
+        }
+        if (!validColors.includes(designColor_2.toLowerCase())) {
+            return res.status(400).json({ success: false, message: "designColor_2 must be 'white', 'black', or 'normal'" });
+        }
 
         const isConfigurator = isFromConfigurator === 'true' || isFromConfigurator === true;
         const shareWithAll = forAllStudents === 'true' || forAllStudents === true;
 
-        // Validate designColor if provided
-        if (designColor && !['white', 'black', 'normal'].includes(designColor.toLowerCase())) {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid design color. Only 'white', 'black', or 'normal' are allowed."
-            });
-        }
-
-        // Check agar isFromConfigurator true hai aur already ek design exist karta hai
         if (isConfigurator) {
             const existingDesign = await prisma.backDesign.findFirst({
-                where: {
-                    class_id: parseInt(classId),
-                    isFromConfigurator: true,
-                    status: { not: 2 }
-                }
+                where: { class_id: parseInt(classId), isFromConfigurator: true, status: { not: 2 } }
             });
-
             if (existingDesign) {
                 return res.status(400).json({
                     success: false,
@@ -63,7 +63,6 @@ export const uploadClassBackDesign = async (req, res) => {
             }
         }
 
-        // If forAllStudents is true, fetch the class's country_id to link to library
         let libraryCountryId = null;
         if (shareWithAll) {
             const classData = await prisma.classes.findUnique({
@@ -75,16 +74,21 @@ export const uploadClassBackDesign = async (req, res) => {
 
         const design = await prisma.backDesign.create({
             data: {
-                class_id: parseInt(classId),
-                name: name || `back_design_${Date.now()}`,
-                file_path: req.file.path,
-                is_library: shareWithAll,          // true = visible in country library
-                forAllStudents: shareWithAll,
-                country_id: shareWithAll ? libraryCountryId : null,
-                process_status: 'uploaded',
-                status: 1,
-                isFromConfigurator: isConfigurator,
-                designColor: designColor ? designColor.toLowerCase() : null
+                class_id:             parseInt(classId),
+                country_id:           shareWithAll ? libraryCountryId : null,
+                name:                 name || `back_design_${Date.now()}`,
+                file_path:            file1.path,
+                file_path_2:          file2.path,
+                configured_file_path: null,
+                designColor:          designColor.toLowerCase(),
+                designColor_2:        designColor_2.toLowerCase(),
+                is_library:           shareWithAll,
+                forAllStudents:       shareWithAll,
+                process_status:       'uploaded',
+                admin_comment:        null,
+                status:               1,
+                isFromConfigurator:   isConfigurator,
+                configurator_state:   null
             }
         });
 
@@ -95,44 +99,33 @@ export const uploadClassBackDesign = async (req, res) => {
                     where: { id: parseInt(classId) },
                     include: { school: { select: { id: true, name: true } } }
                 }),
-                prisma.user.findUnique({
-                    where: { id: req.user.id },
-                    select: { name: true, email: true }
-                }),
+                prisma.user.findUnique({ where: { id: req.user.id }, select: { name: true, email: true } }),
                 getAdminNotificationEmails()
             ]);
-
             const schoolId = classInfo?.school?.id;
             const schoolClassReps = schoolId ? await prisma.user.findMany({
                 where: { school_id: schoolId, role: 'class_representative', status: { not: 2 } },
                 select: { email: true }
             }) : [];
-
-            const crEmails = schoolClassReps.map(u => u.email);
-            const allRecipients = [...new Set([...adminEmails, ...crEmails])];
-
-            await Promise.allSettled(
-                allRecipients.map(recipientEmail =>
-                    sendBackDesignUploadNotificationEmail({
-                        recipientEmail,
-                        designName: design.name,
-                        className: classInfo?.name || 'Unknown Class',
-                        schoolName: classInfo?.school?.name || 'Unknown School',
-                        uploaderName: uploader?.name || 'Unknown',
-                        uploaderEmail: uploader?.email || '',
-                        designId: design.id
-                    })
-                )
-            );
+            const allRecipients = [...new Set([...adminEmails, ...schoolClassReps.map(u => u.email)])];
+            await Promise.allSettled(allRecipients.map(recipientEmail =>
+                sendBackDesignUploadNotificationEmail({
+                    recipientEmail,
+                    designName: design.name,
+                    className: classInfo?.name || 'Unknown Class',
+                    schoolName: classInfo?.school?.name || 'Unknown School',
+                    uploaderName: uploader?.name || 'Unknown',
+                    uploaderEmail: uploader?.email || '',
+                    designId: design.id
+                })
+            ));
         } catch (emailError) {
             console.error('Failed to send back design upload notification:', emailError.message);
         }
 
         res.json({
             success: true,
-            message: shareWithAll
-                ? "Back design uploaded and added to country library"
-                : "Back design uploaded",
+            message: shareWithAll ? "Back design uploaded and added to country library" : "Back design uploaded",
             data: design
         });
     } catch (err) {
@@ -143,30 +136,36 @@ export const uploadClassBackDesign = async (req, res) => {
 export const reUploadClassBackDesign = async (req, res) => {
     try {
         const classId = req.user.class_id;
-        const { name, isFromConfigurator, designColor, configurator_state, forAllStudents } = req.body;
+        const { name, isFromConfigurator, designColor, designColor_2, configurator_state, forAllStudents } = req.body;
         const designId = req.params.id;
 
         if (!classId) return res.status(400).json({ success: false, message: "User not assigned to any class" });
-        if (!req.file) return res.status(400).json({ success: false, message: "No file uploaded" });
 
-        const isConfigurator = isFromConfigurator === 'true' || isFromConfigurator === true;
-        const shareWithAll = forAllStudents === 'true' || forAllStudents === true;
+        const file1 = req.files?.['backDesign']?.[0];
+        const file2 = req.files?.['backDesign_2']?.[0];
+        if (!file1) return res.status(400).json({ success: false, message: "backDesign (first file) is required" });
+        if (!file2) return res.status(400).json({ success: false, message: "backDesign_2 (second file) is required" });
+        if (!designColor) return res.status(400).json({ success: false, message: "designColor is required" });
+        if (!designColor_2) return res.status(400).json({ success: false, message: "designColor_2 is required" });
 
-        if (designColor && !['white', 'black'].includes(designColor.toLowerCase())) {
-            return res.status(400).json({ success: false, message: "Invalid design color. Only 'white' or 'black' are allowed." });
+        const validColors = ['white', 'black', 'normal'];
+        if (!validColors.includes(designColor.toLowerCase())) {
+            return res.status(400).json({ success: false, message: "designColor must be 'white', 'black', or 'normal'" });
+        }
+        if (!validColors.includes(designColor_2.toLowerCase())) {
+            return res.status(400).json({ success: false, message: "designColor_2 must be 'white', 'black', or 'normal'" });
         }
 
-        // Parse configurator_state if sent as string
+        const isConfigurator = isFromConfigurator === 'true' || isFromConfigurator === true;
+        const shareWithAll   = forAllStudents === 'true' || forAllStudents === true;
+
         let parsedState = null;
         if (configurator_state) {
             try {
                 parsedState = typeof configurator_state === 'string' ? JSON.parse(configurator_state) : configurator_state;
-            } catch (e) {
-                parsedState = null;
-            }
+            } catch (e) { parsedState = null; }
         }
 
-        // If forAllStudents is true, fetch the class's country_id
         let libraryCountryId = null;
         if (shareWithAll) {
             const classData = await prisma.classes.findUnique({
@@ -179,17 +178,21 @@ export const reUploadClassBackDesign = async (req, res) => {
         const design = await prisma.backDesign.update({
             where: { id: parseInt(designId) },
             data: {
-                class_id: parseInt(classId),
-                name: name || `back_design_${Date.now()}`,
-                file_path: req.file.path,
-                is_library: shareWithAll,
-                forAllStudents: shareWithAll,
-                country_id: shareWithAll ? libraryCountryId : null,
-                process_status: 'uploaded',
-                status: 1,
-                isFromConfigurator: isConfigurator,
-                designColor: designColor ? designColor.toLowerCase() : null,
-                ...(parsedState && { configurator_state: parsedState })
+                class_id:             parseInt(classId),
+                country_id:           shareWithAll ? libraryCountryId : null,
+                name:                 name || `back_design_${Date.now()}`,
+                file_path:            file1.path,
+                file_path_2:          file2.path,
+                configured_file_path: null,
+                designColor:          designColor.toLowerCase(),
+                designColor_2:        designColor_2.toLowerCase(),
+                is_library:           shareWithAll,
+                forAllStudents:       shareWithAll,
+                process_status:       'uploaded',
+                admin_comment:        null,
+                status:               1,
+                isFromConfigurator:   isConfigurator,
+                configurator_state:   parsedState || null
             }
         });
 
@@ -455,23 +458,36 @@ export const getStudyTripCountries = async (req, res) => {
 // Admin: upload a library design with country_id
 export const uploadLibraryDesign = async (req, res) => {
     try {
-        const { name, country_id, designColor } = req.body;
+        const { name, country_id, designColor, designColor_2 } = req.body;
 
-        if (!req.file) return res.status(400).json({ success: false, message: "No file uploaded" });
+        const file1 = req.files?.['design']?.[0];
+        const file2 = req.files?.['design_2']?.[0];
+        if (!file1) return res.status(400).json({ success: false, message: "design (first file) is required" });
+        if (!file2) return res.status(400).json({ success: false, message: "design_2 (second file) is required" });
         if (!country_id) return res.status(400).json({ success: false, message: "country_id is required" });
+        if (!designColor) return res.status(400).json({ success: false, message: "designColor is required" });
+        if (!designColor_2) return res.status(400).json({ success: false, message: "designColor_2 is required" });
 
         const country = await prisma.country.findUnique({ where: { id: parseInt(country_id) } });
         if (!country) return res.status(404).json({ success: false, message: "Country not found" });
 
         const design = await prisma.backDesign.create({
             data: {
-                name: name || `library_${country.name}_${Date.now()}`,
-                file_path: req.file.path,
-                is_library: true,
-                country_id: parseInt(country_id),
-                designColor: designColor || null,
-                process_status: 'approved',
-                status: 0
+                class_id:             null,
+                country_id:           parseInt(country_id),
+                name:                 name || `library_${country.name}_${Date.now()}`,
+                file_path:            file1.path,
+                file_path_2:          file2.path,
+                configured_file_path: null,
+                designColor:          designColor.toLowerCase(),
+                designColor_2:        designColor_2.toLowerCase(),
+                is_library:           true,
+                forAllStudents:       false,
+                process_status:       'approved',
+                admin_comment:        null,
+                status:               0,
+                isFromConfigurator:   false,
+                configurator_state:   null
             }
         });
 
@@ -579,12 +595,12 @@ export const deleteMyBackDesign = async (req, res) => {
     }
 };
 
-// Class Rep: edit back design details (name, designColor) without re-uploading file
+// Class Rep: edit back design details (name, designColor, designColor_2) — no file re-upload
 export const editMyBackDesign = async (req, res) => {
     try {
         const { designId } = req.params;
         const classId = req.user.class_id;
-        const { name, designColor } = req.body;
+        const { name, designColor, designColor_2 } = req.body;
 
         if (!classId) return res.status(400).json({ success: false, message: "No class assigned" });
 
@@ -592,17 +608,66 @@ export const editMyBackDesign = async (req, res) => {
         if (!design) return res.status(404).json({ success: false, message: "Design not found" });
         if (design.class_id !== classId) return res.status(403).json({ success: false, message: "Unauthorized" });
 
-        if (designColor && !['white', 'black'].includes(designColor.toLowerCase())) {
-            return res.status(400).json({ success: false, message: "designColor must be 'white' or 'black'" });
+        if (design.status === 2) {
+            return res.status(400).json({ success: false, message: "Cannot edit a deleted design" });
+        }
+
+        const validColors = ['white', 'black', 'normal'];
+        if (designColor && !validColors.includes(designColor.toLowerCase())) {
+            return res.status(400).json({ success: false, message: "designColor must be 'white', 'black', or 'normal'" });
+        }
+        if (designColor_2 && !validColors.includes(designColor_2.toLowerCase())) {
+            return res.status(400).json({ success: false, message: "designColor_2 must be 'white', 'black', or 'normal'" });
         }
 
         const updated = await prisma.backDesign.update({
             where: { id: parseInt(designId) },
             data: {
-                ...(name && { name }),
-                ...(designColor && { designColor: designColor.toLowerCase() }),
+                ...(name         && { name }),
+                ...(designColor  && { designColor:  designColor.toLowerCase()  }),
+                ...(designColor_2 && { designColor_2: designColor_2.toLowerCase() }),
                 process_status: 'uploaded', // reset to pending review
                 status: 1
+            }
+        });
+
+        res.json({ success: true, message: "Design updated", data: updated });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// Admin: edit any back design (name, designColor, designColor_2, country_id, forAllStudents)
+export const adminEditBackDesign = async (req, res) => {
+    try {
+        const { designId } = req.params;
+        const { name, designColor, designColor_2, country_id, forAllStudents } = req.body;
+
+        const design = await prisma.backDesign.findUnique({ where: { id: parseInt(designId) } });
+        if (!design) return res.status(404).json({ success: false, message: "Design not found" });
+        if (design.status === 2) return res.status(400).json({ success: false, message: "Cannot edit a deleted design" });
+
+        const validColors = ['white', 'black', 'normal'];
+        if (designColor && !validColors.includes(designColor.toLowerCase())) {
+            return res.status(400).json({ success: false, message: "designColor must be 'white', 'black', or 'normal'" });
+        }
+        if (designColor_2 && !validColors.includes(designColor_2.toLowerCase())) {
+            return res.status(400).json({ success: false, message: "designColor_2 must be 'white', 'black', or 'normal'" });
+        }
+
+        const shareWithAll = forAllStudents !== undefined
+            ? (forAllStudents === 'true' || forAllStudents === true)
+            : design.forAllStudents;
+
+        const updated = await prisma.backDesign.update({
+            where: { id: parseInt(designId) },
+            data: {
+                ...(name          && { name }),
+                ...(designColor   && { designColor:  designColor.toLowerCase()  }),
+                ...(designColor_2 && { designColor_2: designColor_2.toLowerCase() }),
+                ...(country_id    !== undefined && { country_id: country_id ? parseInt(country_id) : null }),
+                forAllStudents: shareWithAll,
+                is_library: shareWithAll || design.is_library
             }
         });
 
@@ -616,12 +681,11 @@ export const editMyBackDesign = async (req, res) => {
 export const saveConfiguratorState = async (req, res) => {
     try {
         const classId = req.user.class_id;
-        const { configurator_state, designColor, name } = req.body;
+        const { configurator_state, designColor, name, configured_file_path } = req.body;
 
         if (!classId) return res.status(400).json({ success: false, message: "No class assigned" });
         if (!configurator_state) return res.status(400).json({ success: false, message: "configurator_state is required" });
 
-        // Find existing draft or configurator design for this class
         let design = await prisma.backDesign.findFirst({
             where: { class_id: parseInt(classId), isFromConfigurator: true, status: { not: 2 } }
         });
@@ -631,22 +695,29 @@ export const saveConfiguratorState = async (req, res) => {
                 where: { id: design.id },
                 data: {
                     configurator_state,
-                    ...(designColor && { designColor }),
-                    ...(name && { name })
+                    designColor:          designColor           || design.designColor,
+                    name:                 name                  || design.name,
+                    configured_file_path: configured_file_path  || design.configured_file_path
                 }
             });
         } else {
             design = await prisma.backDesign.create({
                 data: {
-                    class_id: parseInt(classId),
-                    name: name || `configurator_draft_${Date.now()}`,
-                    file_path: '',
-                    is_library: false,
-                    isFromConfigurator: true,
-                    configurator_state,
-                    designColor: designColor || null,
-                    process_status: 'uploaded',
-                    status: 1
+                    class_id:             parseInt(classId),
+                    country_id:           null,
+                    name:                 name || `configurator_draft_${Date.now()}`,
+                    file_path:            '',
+                    file_path_2:          null,
+                    configured_file_path: configured_file_path || null,
+                    designColor:          designColor || 'white',
+                    designColor_2:        null,
+                    is_library:           false,
+                    forAllStudents:       false,
+                    process_status:       'uploaded',
+                    admin_comment:        null,
+                    status:               1,
+                    isFromConfigurator:   true,
+                    configurator_state
                 }
             });
         }

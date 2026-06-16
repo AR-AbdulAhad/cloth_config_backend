@@ -448,7 +448,7 @@ export const listMyBackDesigns = async (req, res) => {
         const [items, total] = await Promise.all([
             prisma.backDesign.findMany({
                 where,
-                select: { id: true, name: true, file_path: true, status: true, isFromConfigurator: true, designColor: true, process_status: true, admin_comment: true, created_at: true },
+                // select: { id: true, name: true, file_path: true, status: true, isFromConfigurator: true, designColor: true, process_status: true, admin_comment: true, created_at: true },
                 orderBy: { created_at: 'desc' },
                 skip,
                 take: limitNum

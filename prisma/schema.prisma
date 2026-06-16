@@ -172,20 +172,24 @@ model Logo {
 
   @@map("logos")
 }
-
 model BackDesign {
   id                  Int          @id @default(autoincrement())
   class_id            Int?
   country_id          Int?
   name                String       @db.VarChar(255)
+
   file_path           String       @db.VarChar(255)
+  file_path_2         String?      @db.VarChar(255)
+  configured_file_path String?     @db.VarChar(255)
+  designColor         String?      @default("white") @db.VarChar(20)
+  designColor_2       String?      @default("black") @db.VarChar(20)
+
   is_library          Boolean      @default(false)
   forAllStudents      Boolean      @default(false)
   process_status      DesignStatus @default(uploaded)
   admin_comment       String?      @db.Text
   status              Int          @default(0)
   isFromConfigurator  Boolean      @default(false)
-  designColor         String?      @default("white") @db.VarChar(20)
   configurator_state  Json?
   created_at          DateTime     @default(now())
 

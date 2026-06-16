@@ -236,23 +236,34 @@ export const adminUploadLogo = async (req, res) => {
 // Admin: upload back design for a class — auto approved
 export const adminUploadBackDesign = async (req, res) => {
     try {
-        const { name, class_id, country_id, designColor, forAllStudents } = req.body;
+        const { name, class_id, country_id, designColor, designColor_2, forAllStudents } = req.body;
 
-        if (!req.file) return res.status(400).json({ success: false, message: "No file uploaded" });
+        const file1 = req.files?.['design']?.[0];
+        const file2 = req.files?.['design_2']?.[0];
+        if (!file1) return res.status(400).json({ success: false, message: "design (first file) is required" });
+        if (!file2) return res.status(400).json({ success: false, message: "design_2 (second file) is required" });
+        if (!designColor) return res.status(400).json({ success: false, message: "designColor is required" });
+        if (!designColor_2) return res.status(400).json({ success: false, message: "designColor_2 is required" });
 
         const shareWithAll = forAllStudents === 'true' || forAllStudents === true;
 
         const design = await prisma.backDesign.create({
             data: {
-                name: name || req.file.originalname.replace(/\.[^/.]+$/, ""),
-                file_path: req.file.path,
-                class_id: class_id ? parseInt(class_id) : null,
-                country_id: country_id ? parseInt(country_id) : null,
-                designColor: designColor || null,
-                is_library: shareWithAll || !class_id, // forAllStudents OR no class_id = library
-                forAllStudents: shareWithAll,
-                process_status: 'approved', // admin upload = auto approved
-                status: 0
+                class_id:             class_id ? parseInt(class_id) : null,
+                country_id:           country_id ? parseInt(country_id) : null,
+                name:                 name || file1.originalname.replace(/\.[^/.]+$/, ""),
+                file_path:            file1.path,
+                file_path_2:          file2.path,
+                configured_file_path: null,
+                designColor:          designColor.toLowerCase(),
+                designColor_2:        designColor_2.toLowerCase(),
+                is_library:           shareWithAll || !class_id,
+                forAllStudents:       shareWithAll,
+                process_status:       'approved',
+                admin_comment:        null,
+                status:               0,
+                isFromConfigurator:   false,
+                configurator_state:   null
             }
         });
 
@@ -359,6 +370,72 @@ export const adminPermanentDeleteLogo = async (req, res) => {
             success: true,
             message: `Logo "${logo.name}" from ${logo.school.name} has been permanently deleted`
         });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// ─────────────────────────────────────────────
+// CR: edit own logo name (own school only)
+// PUT /api/class-rep/logo/:logoId/edit
+// ─────────────────────────────────────────────
+export const editMyLogo = async (req, res) => {
+    try {
+        const { logoId } = req.params;
+        const schoolId = req.user.school_id;
+        const { name } = req.body;
+
+        if (!name) return res.status(400).json({ success: false, message: "name is required" });
+
+        const logo = await prisma.logo.findUnique({ where: { id: parseInt(logoId) } });
+        if (!logo) return res.status(404).json({ success: false, message: "Logo not found" });
+        if (logo.school_id !== schoolId) return res.status(403).json({ success: false, message: "Unauthorized" });
+        if (logo.status === 2) return res.status(400).json({ success: false, message: "Cannot edit a deleted logo" });
+
+        // Duplicate name check within same school (exclude current)
+        const duplicate = await prisma.logo.findFirst({
+            where: { school_id: schoolId, name, status: { not: 2 }, NOT: { id: parseInt(logoId) } }
+        });
+        if (duplicate) return res.status(409).json({ success: false, message: `A logo named "${name}" already exists for this school` });
+
+        const updated = await prisma.logo.update({
+            where: { id: parseInt(logoId) },
+            data: { name }
+        });
+
+        res.json({ success: true, message: "Logo updated", data: updated });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// ─────────────────────────────────────────────
+// Admin: edit any logo name
+// PUT /api/admin/logo/:logoId/edit
+// ─────────────────────────────────────────────
+export const adminEditLogo = async (req, res) => {
+    try {
+        const { logoId } = req.params;
+        const { name } = req.body;
+
+        if (!name) return res.status(400).json({ success: false, message: "name is required" });
+
+        const logo = await prisma.logo.findUnique({ where: { id: parseInt(logoId) } });
+        if (!logo) return res.status(404).json({ success: false, message: "Logo not found" });
+        if (logo.status === 2) return res.status(400).json({ success: false, message: "Cannot edit a deleted logo" });
+
+        // Duplicate check within same school
+        const duplicate = await prisma.logo.findFirst({
+            where: { school_id: logo.school_id, name, status: { not: 2 }, NOT: { id: parseInt(logoId) } }
+        });
+        if (duplicate) return res.status(409).json({ success: false, message: `A logo named "${name}" already exists for this school` });
+
+        const updated = await prisma.logo.update({
+            where: { id: parseInt(logoId) },
+            data: { name }
+        });
+
+        res.json({ success: true, message: "Logo updated", data: updated });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }

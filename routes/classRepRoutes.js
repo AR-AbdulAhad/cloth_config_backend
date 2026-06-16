@@ -4,7 +4,7 @@ import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { generateRegistrationLink } from "../controllers/userController.js";
 import { listClasses, getStudentOverview, listStudents, getAssignedClass, listMyLogos, listMyBackDesigns, setMyClassExpectedStudentCount, getMyClassStudentCount } from "../controllers/classRepController.js";
 import { listMyClass, editClass } from "../controllers/classController.js";
-import { uploadSchoolLogo, deleteMyLogo } from "../controllers/logoController.js";
+import { uploadSchoolLogo, deleteMyLogo, editMyLogo } from "../controllers/logoController.js";
 import { uploadClassBackDesign, getConfiguratorBackDesign, reUploadClassBackDesign, setClassStudyTripCountry, getLibraryDesignsForMyClass, getStudyTripCountries, deleteMyBackDesign, editMyBackDesign, saveConfiguratorState, loadConfiguratorState } from "../controllers/designController.js";
 import multer from "multer";
 import { getNameListForUser, addNameListItem, updateNameListItem, reorderNameListItems, markNameListReady, createNameList, deleteNameListItem } from "../controllers/nameListControllers.js";
@@ -75,10 +75,17 @@ router.get("/generate-registration-link", middleware, generateRegistrationLink);
 
 // Design & Assets
 router.post("/upload-logo", middleware, uploadLogo.single("logo"), uploadSchoolLogo);
-router.post("/upload-back-design", middleware, uploadBackDesign.single("backDesign"), uploadClassBackDesign);
-router.post("/upload-back-design/:id", middleware, uploadBackDesign.single("backDesign"), reUploadClassBackDesign);
+router.post("/upload-back-design", middleware, uploadBackDesign.fields([
+    { name: "backDesign", maxCount: 1 },
+    { name: "backDesign_2", maxCount: 1 }
+]), uploadClassBackDesign);
+router.post("/upload-back-design/:id", middleware, uploadBackDesign.fields([
+    { name: "backDesign", maxCount: 1 },
+    { name: "backDesign_2", maxCount: 1 }
+]), reUploadClassBackDesign);
 router.post("/my-logos", middleware, listMyLogos);
 router.delete("/logo/:logoId/delete", middleware, deleteMyLogo);
+router.put("/logo/:logoId/edit", middleware, editMyLogo);
 router.post("/back-designs", middleware, listMyBackDesigns);
 router.delete("/back-design/:designId/delete", middleware, deleteMyBackDesign);
 router.put("/back-design/:designId/edit", middleware, editMyBackDesign);
