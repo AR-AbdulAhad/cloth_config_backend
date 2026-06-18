@@ -249,21 +249,22 @@ export const adminUploadBackDesign = async (req, res) => {
 
         const design = await prisma.backDesign.create({
             data: {
-                class_id:             class_id ? parseInt(class_id) : null,
-                country_id:           country_id ? parseInt(country_id) : null,
-                name:                 name || file1.originalname.replace(/\.[^/.]+$/, ""),
-                file_path:            file1.path,
-                file_path_2:          file2.path,
+                class_id: class_id ? parseInt(class_id) : null,
+                country_id: country_id ? parseInt(country_id) : null,
+                name: name || file1.originalname.replace(/\.[^/.]+$/, ""),
+                file_path: file1.path,
+                file_path_2: file2.path,
                 configured_file_path: null,
-                designColor:          designColor.toLowerCase(),
-                designColor_2:        designColor_2.toLowerCase(),
-                is_library:           shareWithAll || !class_id,
-                forAllStudents:       shareWithAll,
-                process_status:       'approved',
-                admin_comment:        null,
-                status:               0,
-                isFromConfigurator:   false,
-                configurator_state:   null
+                configured_file_path_2: null,
+                designColor: designColor.toLowerCase(),
+                designColor_2: designColor_2.toLowerCase(),
+                is_library: shareWithAll || !class_id,
+                forAllStudents: shareWithAll,
+                process_status: 'approved',
+                admin_comment: null,
+                status: 0,
+                isFromConfigurator: false,
+                configurator_state: null
             }
         });
 
@@ -272,6 +273,77 @@ export const adminUploadBackDesign = async (req, res) => {
         res.status(500).json({ success: false, error: err.message });
     }
 };
+
+export const editBackDesign = async (req, res) => {
+    try {
+        const { designId } = req.params;
+        const {
+            name,
+            class_id,
+            country_id,
+            designColor,
+            designColor_2,
+            forAllStudents
+        } = req.body || {};
+
+        const file1 = req.files?.['design']?.[0];
+        const file2 = req.files?.['design_2']?.[0];
+
+        const design = await prisma.backDesign.findUnique({
+            where: { id: parseInt(designId) }
+        });
+
+        if (!design) {
+            return res.status(404).json({
+                success: false,
+                message: "Back design not found"
+            });
+        }
+        if (design.status === 2) {
+            return res.status(400).json({ success: false, message: "Cannot edit a deleted design" });
+        }
+
+        const validColors = ['white', 'black', 'normal'];
+        if (designColor && !validColors.includes(designColor.toLowerCase())) {
+            return res.status(400).json({ success: false, message: "designColor must be 'white', 'black', or 'normal'" });
+        }
+        if (designColor_2 && !validColors.includes(designColor_2.toLowerCase())) {
+            return res.status(400).json({ success: false, message: "designColor_2 must be 'white', 'black', or 'normal'" });
+        }
+
+        const shareWithAll = forAllStudents !== undefined
+            ? (forAllStudents === 'true' || forAllStudents === true)
+            : design.forAllStudents;
+
+        const updated = await prisma.backDesign.update({
+            where: { id: parseInt(designId) },
+            data: {
+                ...(name && { name }),
+                ...(class_id !== undefined && { class_id: class_id ? parseInt(class_id) : null }),
+                ...(country_id !== undefined && { country_id: country_id ? parseInt(country_id) : null }),
+                ...(designColor && { designColor: designColor.toLowerCase() }),
+                ...(designColor_2 && { designColor_2: designColor_2.toLowerCase() }),
+                forAllStudents: shareWithAll,
+                is_library: shareWithAll || design.is_library,
+                ...(file1 && { file_path: file1.path, configured_file_path: null, configured_file_path_2: null }),
+                ...(file2 && { file_path_2: file2.path, configured_file_path: null, configured_file_path_2: null })
+            }
+        });
+
+        return res.json({
+            success: true,
+            message: "Back design updated successfully",
+            data: updated
+        });
+
+    } catch (err) {
+        return res.status(500).json({
+            success: false,
+            error: err.message
+        });
+    }
+};
+
 // Admin: delete any logo (soft delete)
 export const adminDeleteLogo = async (req, res) => {
     try {

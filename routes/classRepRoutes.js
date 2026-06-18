@@ -88,7 +88,12 @@ router.delete("/logo/:logoId/delete", middleware, deleteMyLogo);
 router.put("/logo/:logoId/edit", middleware, editMyLogo);
 router.post("/back-designs", middleware, listMyBackDesigns);
 router.delete("/back-design/:designId/delete", middleware, deleteMyBackDesign);
-router.put("/back-design/:designId/edit", middleware, editMyBackDesign);
+router.put("/back-design/:designId/edit", middleware, uploadBackDesign.fields([
+    { name: "configuredDesign", maxCount: 1 },
+    { name: "configuredDesign_2", maxCount: 1 },
+    { name: "backDesign", maxCount: 1 },
+    { name: "backDesign_2", maxCount: 1 }
+]), editMyBackDesign);
 router.post("/configurator/save-state", middleware, saveConfiguratorState);
 router.get("/configurator/load-state", middleware, loadConfiguratorState);
 router.get("/class/:classId/configurator-back-design", middleware, getConfiguratorBackDesign);

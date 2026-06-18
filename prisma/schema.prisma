@@ -181,6 +181,7 @@ model BackDesign {
   file_path           String       @db.VarChar(255)
   file_path_2         String?      @db.VarChar(255)
   configured_file_path String?     @db.VarChar(255)
+  configured_file_path_2 String?   @db.VarChar(255)
   designColor         String?      @default("white") @db.VarChar(20)
   designColor_2       String?      @default("black") @db.VarChar(20)
 
