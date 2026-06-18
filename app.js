@@ -49,16 +49,16 @@ app.use(cors({
 
 // Need raw body for Stripe webhook signature verification
 app.use(express.json({
-    limit: '50mb', // Increase limit for large HTML templates
+    limit: '100mb', // Increase limit for large HTML templates
     verify: (req, res, buf) => {
         if (req.originalUrl.includes("/webhook")) {
             req.rawBody = buf.toString();
         }
     }
 }));
-app.use(express.urlencoded({ 
+app.use(express.urlencoded({
     extended: true,
-    limit: '50mb' // Increase limit for form data as well
+    limit: '100mb' // Increase limit for form data as well
 }));
 
 // Serve uploads with CORS headers so images load cross-origin
