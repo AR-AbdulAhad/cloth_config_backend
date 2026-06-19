@@ -26,7 +26,8 @@ const libraryStorage = multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, "uploads/class_back_designs/"),
     filename: (_req, file, cb) => {
         const ext = path.extname(file.originalname) || ".png";
-        cb(null, `library_${Date.now()}${ext}`);
+        const uniqueName = `library_${Date.now()}_${Math.round(Math.random() * 1e9)}${ext}`;
+        cb(null, uniqueName);
     }
 });
 const uploadLibrary = multer({ storage: libraryStorage, limits: { fileSize: 5 * 1024 * 1024 } });

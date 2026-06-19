@@ -41,7 +41,7 @@ const backDesignStorage = multer.diskStorage({
     filename: (req, file, cb) => {
         const ext = path.extname(file.originalname) || ".png";
         const classId = req.user?.class_id ?? req.body?.class_id ?? req.body?.classId ?? "unknown";
-        const uniqueName = `class_${classId}_${Date.now()}${ext}`;
+        const uniqueName = `class_${classId}_${Date.now()}_${Math.round(Math.random() * 1e9)}${ext}`;
         cb(null, uniqueName);
     }
 });
