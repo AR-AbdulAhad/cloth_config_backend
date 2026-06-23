@@ -134,13 +134,29 @@ export const register = async (req, res) => {
             });
         }
 
-        // Check if email already exists
         const existingUser = await prisma.user.findUnique({ where: { email } });
         if (existingUser) {
-            return res.status(409).json({
-                success: false,
-                message: "Email already registered"
-            });
+            if (existingUser.status !== 2) {
+
+                if (existingUser.role === "student") {
+                    return res.status(409).json({
+                        success: false,
+                        message: "Email already registered as student"
+                    });
+                }
+
+                if (existingUser.role === "class_representative") {
+                    return res.status(409).json({
+                        success: false,
+                        message: "Email already registered as class representative"
+                    });
+                }
+
+                return res.status(409).json({
+                    success: false,
+                    message: "Email already in use"
+                });
+            }
         }
 
         // Hash password

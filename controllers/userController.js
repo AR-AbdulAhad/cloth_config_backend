@@ -15,7 +15,21 @@ export const addClassRep = async (req, res) => {
         const existingUser = await prisma.user.findUnique({ where: { email } });
         if (existingUser) {
             if (existingUser.status !== 2) {
-                return res.status(409).json({ success: false, message: "Email already in use by an active user" });
+                // user active hai (deleted nahi hai)
+
+                if (existingUser.role === 'student') {
+                    return res.status(409).json({
+                        success: false,
+                        message: "This email is already used by a student"
+                    });
+                }
+
+                if (existingUser.role === 'class_representative') {
+                    return res.status(409).json({
+                        success: false,
+                        message: "This email is already used by a class representative"
+                    });
+                }
             }
             // Restore deleted user with new details
             const restored = await prisma.user.update({
