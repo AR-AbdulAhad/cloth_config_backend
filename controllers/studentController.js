@@ -22,7 +22,7 @@ export const studentLogin = async (req, res) => {
         if (!user) {
             return res.status(404).json({
                 success: false,
-                message: "Invalid email or password"
+                message: "User does not exist"
             });
         }
         if (user.role === "admin") {
