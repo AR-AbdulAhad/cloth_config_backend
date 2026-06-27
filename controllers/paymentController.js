@@ -21,16 +21,11 @@ try {
 
 export const createCheckoutSession = async (req, res) => {
     try {
-        const { orderData, amount } = req.body;
+        const { orderId } = req.body;
+        const studentId = req.user.id;
 
-
-        if (!orderData) {
-            return res.status(400).json({ success: false, message: "Order data is required" });
-        }
-
-        if (!amount || amount <= 0) {
-            console.error(`❌ Invalid amount received: ${amount} (type: ${typeof amount})`);
-            return res.status(400).json({ success: false, message: "Valid amount is required" });
+        if (!orderId) {
+            return res.status(400).json({ success: false, message: "Order ID is required" });
         }
 
         if (!stripe) {
@@ -42,172 +37,82 @@ export const createCheckoutSession = async (req, res) => {
             });
         }
 
-        const studentId = parseInt(orderData.student_id);
-        const classId = parseInt(orderData.class_id);
-        const finalTotal = parseFloat(amount); // Use amount from frontend (already includes VAT)
-
-
-        const classInfo = await prisma.classes.findUnique({
-            where: { id: classId },
-            select: { change_deadline: true }
+        // Fetch existing order with items
+        const order = await prisma.order.findFirst({
+            where: {
+                id: parseInt(orderId),
+                student_id: studentId,
+                status: { not: 2 }
+            },
+            include: {
+                order_items: { where: { status: { not: 2 } } },
+                class: true
+            }
         });
 
-        if (!classInfo) {
-            return res.status(404).json({ success: false, message: "Class not found" });
+        if (!order) {
+            return res.status(404).json({ success: false, message: "Order not found." });
         }
 
-        const now = new Date();
-        if (classInfo.change_deadline && now > new Date(classInfo.change_deadline)) {
-            return res.status(400).json({
+        // Only allow checkouts when status is locked_awaiting_payment or already pending_payment
+        if (order.process_status !== 'locked_awaiting_payment' && order.process_status !== 'pending_payment') {
+            return res.status(403).json({
                 success: false,
-                message: "Order deadline has passed. Orders can no longer be placed.",
-                deadline_passed: true
+                message: `Payment is not allowed. Order is currently in '${order.process_status}' state. It must be locked first.`
             });
         }
 
-        // --- Fetch garment prices for VAT breakdown display only ---
-        const priceSettings = await prisma.setting.findMany({
-            where: { key: { startsWith: 'price_' } }
-        });
-        const PRICES = Object.fromEntries(
-            priceSettings.map(s => [s.key.replace('price_', ''), parseFloat(s.value)])
-        );
-        const DEFAULT_PRICES = { 'T-SHIRT': 200, 'SWEATSHIRT': 350, 'HOODIE': 450, 'ZIPPERHOODIE': 500, 'SWEATPANTS': 300, 'SHORTS': 250 };
-        const getPriceForType = (type) => PRICES[type] ?? DEFAULT_PRICES[type] ?? 0;
+        const balanceDue = parseFloat(order.total_amount || 0) - parseFloat(order.amount_paid || 0);
 
-        let subtotal = 0;
-        orderData.garments.forEach(item => {
-            subtotal += getPriceForType(item.product_type);
-        });
-
-        // --- Calculate VAT breakdown for display purposes ---
-        const orderCalculation = await calculateOrderTotal(subtotal, classId);
-
-        // --- Check Existing Order & Apply Versioning ---
-        const existingOrder = await prisma.order.findFirst({
-            where: { student_id: studentId, status: { not: 2 } },
-            include: { order_items: true }
-        });
-
-
-        let orderId;
-        const currentVersion = existingOrder ? existingOrder.version : 0;
-        const nextVersion = currentVersion + 1;
-        // Use the amount directly from frontend (already includes VAT and all calculations)
-        const balanceDue = finalTotal;
-
-
-        await prisma.$transaction(async (tx) => {
-            if (existingOrder) {
-                if (existingOrder.is_locked) {
-                    throw new Error("Order is locked and cannot be modified.");
-                }
-
-                // Check 3-business-days for editing IF UNPAID
-                const alreadyPaid = parseFloat(existingOrder.amount_paid || 0);
-                if (alreadyPaid <= 0) {
-                    const createdAt = new Date(existingOrder.created_at);
-                    let businessDaysDiff = 0;
-                    let checkDate = new Date(createdAt);
-                    while (checkDate < now) {
-                        checkDate.setDate(checkDate.getDate() + 1);
-                        if (checkDate.getDay() !== 0 && checkDate.getDay() !== 6) businessDaysDiff++;
-                    }
-
-                    if (businessDaysDiff > 3 && !existingOrder.is_locked) {
-                        await tx.order.update({ where: { id: existingOrder.id }, data: { is_locked: true } });
-                        throw new Error("The 3-business-day window for unpaid orders has expired.");
-                    }
-                }
-
-                // Save history before update
-                await tx.orderHistory.create({
-                    data: {
-                        order_id: existingOrder.id,
-                        action: 'payment_initiation',
-                        changed_by: studentId,
-                        version: currentVersion,
-                        changes: {
-                            previousLogo: existingOrder.selected_logo_id,
-                            previousDelivery: existingOrder.delivery_details,
-                            previousItems: existingOrder.order_items,
-                            previousTotal: existingOrder.total_amount
-                        },
-                        changes_summary: `Version ${currentVersion} saved before payment redirect.`
-                    }
-                });
-
-                // Update existing order
-                const updatedOrder = await tx.order.update({
-                    where: { id: existingOrder.id },
-                    data: {
-                        delivery_details: JSON.stringify(orderData.delivery_details),
-                        process_status: balanceDue > 0 ? "pending_payment" : "completed",
-                        total_amount: finalTotal,
-                        version: nextVersion,
-                        updated_at: new Date()
-                    }
-                });
-                orderId = updatedOrder.id;
-
-                // Refresh items
-                await tx.orderItem.deleteMany({ where: { order_id: orderId } });
-            } else {
-                // Create new order
-                const newOrder = await tx.order.create({
-                    data: {
-                        student_id: studentId,
-                        class_id: classId,
-                        delivery_details: JSON.stringify(orderData.delivery_details),
-                        process_status: "pending_payment",
-                        payment_status: "unpaid",
-                        total_amount: finalTotal,
-                        amount_paid: 0,
-                        version: 1,
-                        status: 0
-                    }
-                });
-                orderId = newOrder.id;
-            }
-
-            // Create items
-            const itemData = orderData.garments.map(item => ({
-                order_id: orderId,
-                product_type: item.product_type,
-                selectedColor: item.selectedColor,
-                selectedSize: item.selectedSize,
-                design_config: item.design_config || {},
-                status: 0
-            }));
-            await tx.orderItem.createMany({ data: itemData });
-        });
-
-        // --- Handle No Balance Due ---
         if (balanceDue <= 0) {
+            await prisma.order.update({
+                where: { id: order.id },
+                data: { 
+                    process_status: 'paid', 
+                    paid_at: new Date(), 
+                    payment_status: 'paid',
+                    is_locked: true
+                }
+            });
             return res.json({
                 success: true,
-                message: "Order updated successfully. No additional payment required.",
+                message: "Order is already paid.",
                 no_payment_needed: true
             });
         }
 
-        // --- Create Stripe Session ---
+        // Save history before payment redirect
+        await prisma.orderHistory.create({
+            data: {
+                order_id: order.id,
+                action: 'payment_initiation',
+                changed_by: studentId,
+                version: order.version,
+                changes: {
+                    previousLogo: order.selected_logo_id,
+                    previousDelivery: order.delivery_details,
+                    previousItems: order.order_items,
+                    previousTotal: order.total_amount
+                },
+                changes_summary: `Version ${order.version} saved before redirect to payment.`
+            }
+        });
+
+        // Create Stripe Session
         const stripeUnitAmount = Math.round(balanceDue * 100);
 
         const line_items = [{
             price_data: {
                 currency: "dkk",
                 product_data: {
-                    name: `Payment for Order #${orderId}`,
-                    description: `Total amount including VAT: ${finalTotal.toFixed(2)} DKK`,
+                    name: `Payment for Order #${order.id}`,
+                    description: `Total amount including VAT: ${balanceDue.toFixed(2)} DKK`,
                 },
                 unit_amount: stripeUnitAmount,
             },
             quantity: 1,
         }];
 
-      
-        // Sirf order ID bhejo metadata mein - yeh chhota hai
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ["card"],
             line_items,
@@ -215,27 +120,29 @@ export const createCheckoutSession = async (req, res) => {
             success_url: `${process.env.LIVE_FRONTEND_URL}payment-success?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${process.env.LIVE_FRONTEND_URL}payment-cancelled`,
             metadata: {
-                order_id: orderId.toString()
+                order_id: order.id.toString()
             },
         });
 
-        // Update with session ID
+        // Update with session ID and transition status to pending_payment
         await prisma.order.update({
-            where: { id: orderId },
-            data: { stripe_session_id: session.id }
+            where: { id: order.id },
+            data: { 
+                stripe_session_id: session.id,
+                process_status: 'pending_payment'
+            }
         });
 
         res.json({
             success: true,
             url: session.url,
             session_id: session.id,
-            order_id: orderId
+            order_id: order.id
         });
 
     } catch (error) {
         console.error("Stripe Session Error:", error);
-        res.status(error.message.includes("expired") || error.message.includes("locked") ? 403 : 500)
-            .json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 
@@ -317,25 +224,18 @@ export const stripeWebhook = async (req, res) => {
             });
 
             if (order) {
-                const amountPaidThisSession = session.amount_total / 100; // Total session amount in dkk
-
-                // Since we're using full amounts from frontend, this payment completes the order
                 const payment_status = "paid";
-                const process_status = "completed";
+                const process_status = "paid";
 
-                // Post-payment edit deadline: 3 days from now for delivery details
-                const editDeadline = new Date();
-                editDeadline.setDate(editDeadline.getDate() + 3);
-
-                // Update the order
+                // Update the order and record paid timestamp
                 await prisma.order.update({
                     where: { id: order_id },
                     data: {
-                        amount_paid: amountPaidThisSession, // Set to the amount paid in this session
+                        amount_paid: amountPaidThisSession,
                         payment_status: payment_status,
                         process_status: process_status,
-                        is_locked: false, // Explicitly unlock for the 3-day window
-                        edit_deadline: editDeadline,
+                        is_locked: true, // Remain locked after payment
+                        paid_at: new Date(),
                         status: 1,
                         stripe_payment_intent: session.payment_intent,
                         stripe_session_id: session.id
@@ -347,6 +247,62 @@ export const stripeWebhook = async (req, res) => {
                     data: { status: 1 }
                 });
 
+                // --- Auto-generate production files in background (non-blocking) ---
+                setImmediate(async () => {
+                    try {
+                        const { generatePDF } = await import("../utils/pdfGenerator.js");
+                        const { generateExcel } = await import("../utils/excelGenerator.js");
+
+                        const orderWithDetails = await prisma.order.findUnique({
+                            where: { id: order_id },
+                            include: {
+                                student:     { select: { name: true, email: true } },
+                                class:       { select: { id: true, name: true } },
+                                logo:        { select: { file_path: true } },
+                                order_items: { where: { status: { not: 2 } } }
+                            }
+                        });
+
+                        if (!orderWithDetails || orderWithDetails.order_items.length === 0) return;
+
+                        const nameList = await prisma.nameList.findFirst({
+                            where: { class_id: orderWithDetails.class.id },
+                            include: { items: { orderBy: { position: 'asc' } } }
+                        });
+
+                        const results = orderWithDetails.order_items.map(item => ({
+                            class_name:    orderWithDetails.class.name,
+                            student_name:  orderWithDetails.student.name,
+                            student_email: orderWithDetails.student.email,
+                            product_type:  item.product_type,
+                            color:         item.selectedColor,
+                            size:          item.selectedSize,
+                            design_config: item.design_config,
+                            logo_path:     orderWithDetails.logo?.file_path || null,
+                            name_list:     nameList?.items.map(ni => ni.name).join(', ') || null
+                        }));
+
+                        const pkg = await prisma.productionPackage.create({
+                            data: {
+                                class_id:          orderWithDetails.class.id,
+                                package_name:      `Order_${order_id}_${orderWithDetails.student.name}_${Date.now()}`,
+                                production_status: "processing"
+                            }
+                        });
+
+                        const [pdfPath, excelPath] = await Promise.all([
+                            generatePDF(results),
+                            generateExcel(results)
+                        ]);
+
+                        await prisma.productionPackage.update({
+                            where: { id: pkg.id },
+                            data: { pdf_file_path: pdfPath, excel_file_path: excelPath, production_status: "ready" }
+                        });
+                    } catch (prodErr) {
+                        console.error("Auto production file generation failed in webhook:", prodErr.message);
+                    }
+                });
 
                 // Emit socket events
                 const io = req.app.get('io');

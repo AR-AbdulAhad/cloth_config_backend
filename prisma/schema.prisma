@@ -47,12 +47,20 @@ enum NameListStatus {
 }
 
 enum OrderStatus {
+  draft
+  on_hold
+  locked_awaiting_payment
+  paid
+  in_production
+  dispatched
+  completed
+  cancelled
+  
+  // Legacy/Compatibility statuses:
   in_progress
   saved
   pending_payment
   partial_paid
-  completed
-  cancelled
 }
 
 enum ClassStatus {
@@ -235,7 +243,7 @@ model Order {
   selected_logo_id Int?
   delivery_details String?     @db.Text
   is_locked        Boolean     @default(false)
-  process_status   OrderStatus @default(in_progress)
+  process_status   OrderStatus @default(on_hold)
   status           Int         @default(0)
   version          Int         @default(1)     
   total_amount     Decimal?    @db.Decimal(10, 2) @default(0)
@@ -244,6 +252,15 @@ model Order {
   edit_deadline    DateTime?   // Window to edit after payment
   stripe_payment_intent String? @db.VarChar(255)
   stripe_session_id    String? @db.VarChar(255)
+  
+  // Tracking Timestamps
+  hold_deadline       DateTime?
+  locked_at           DateTime?
+  paid_at             DateTime?
+  finalized_at        DateTime?
+  production_started_at DateTime?
+  dispatched_at       DateTime?
+
   created_at       DateTime    @default(now())
   updated_at       DateTime    @default(now()) @updatedAt
 

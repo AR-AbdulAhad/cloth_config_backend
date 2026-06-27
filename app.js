@@ -11,6 +11,7 @@ import templateRoutes from "./routes/templateRoutes.js";
 import contactRoutes from "./routes/contactRoutes.js";
 import cors from "cors";
 import path from "path";
+import { checkExpiredHoldOrders } from "./utils/expiryWorker.js";
 
 import { Server } from "socket.io";
 import http from "http";
@@ -108,4 +109,11 @@ app.use((req, res, next) => {
 });
 
 httpServer.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+
+    // Start the expiry checking worker interval (every 1 minute)
+    checkExpiredHoldOrders(); // Run once immediately on start
+    setInterval(() => {
+        checkExpiredHoldOrders();
+    }, 60000);
 });
