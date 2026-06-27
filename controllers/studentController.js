@@ -251,9 +251,13 @@ export const placeOrder = async (req, res) => {
         }
 
         const now = new Date();
-        // Check class deadline
-        if (targetClass.change_deadline && now > new Date(targetClass.change_deadline)) {
-            return res.status(403).json({ success: false, message: "Class order deadline has passed." });
+        // Check class deadline — allow until end of deadline day (23:59:59 UTC)
+        if (targetClass.change_deadline) {
+            const deadline = new Date(targetClass.change_deadline);
+            deadline.setUTCHours(23, 59, 59, 999); // end of deadline day in UTC
+            if (now > deadline) {
+                return res.status(403).json({ success: false, message: "Class order deadline has passed." });
+            }
         }
 
         // --- Find Active Order (on_hold or draft) ---
@@ -339,7 +343,7 @@ export const placeOrder = async (req, res) => {
         let finalOrderId;
         let changesSummary = [];
 
-        // --- Transaction: Create/Update Order & Items & History ---
+        // --- Transaction: Create/Update Order & Items (History saved AFTER transaction) ---
         await prisma.$transaction(async (tx) => {
             if (activeOrder) {
                 // Capture changes for history
@@ -402,15 +406,17 @@ export const placeOrder = async (req, res) => {
                     await tx.orderItem.createMany({ data: itemData });
                 }
             }
+        }, { timeout: 15000 }); // 15 second timeout
 
-            // --- Track History ---
-            if (previousState) {
-                await tx.orderHistory.create({
+        // --- Track History (outside transaction — non-critical, has heavy JSON) ---
+        if (previousState && finalOrderId) {
+            try {
+                await prisma.orderHistory.create({
                     data: {
                         order_id: finalOrderId,
                         action: versionAction,
                         changed_by: studentId,
-                        version: previousState.version, // Record the state BEFORE this update
+                        version: previousState.version,
                         changes: {
                             previousLogo: previousState.selected_logo_id,
                             previousDelivery: previousState.delivery_details,
@@ -420,8 +426,11 @@ export const placeOrder = async (req, res) => {
                         changes_summary: `Version ${previousState.version} saved. Changes: ${changesSummary.join(", ")}`
                     }
                 });
+            } catch (historyErr) {
+                // History failure should not break the order — just log it
+                console.error("Order history save failed:", historyErr.message);
             }
-        });
+        }
 
         // --- Emit Socket Event for real-time update ---
         if (req.io) {
