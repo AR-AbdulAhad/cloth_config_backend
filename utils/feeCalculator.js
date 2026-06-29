@@ -1,13 +1,13 @@
 import prisma from "../config/prisma.js";
 
 /**
- * Calculate handling fee per student for a class based on total order items.
+ * Calculate handling fee per student for a class based on expected student count.
  *
  * Logic:
- * - Count total order items across all orders in the class
- * - If totalItems <= threshold: totalFee = baseFee
- * - If totalItems > threshold: totalFee = baseFee + extraFee
- * - Per student fee = totalFee / number of students with orders
+ * - Use class.expected_students, same as the frontend modal
+ * - If expected_students <= threshold: totalFee = baseFee
+ * - If expected_students > threshold: totalFee = baseFee + extraFee
+ * - Per student fee = totalFee / expected_students
  */
 export const calculateHandlingFeePerStudent = async (classId) => {
     const settings = await prisma.setting.findMany({
@@ -22,23 +22,16 @@ export const calculateHandlingFeePerStudent = async (classId) => {
     const threshold = parseInt(map.handling_fee_threshold || 20);
     const extraFee = parseFloat(map.handling_fee_extra || 250);
 
-    // Count total order items in this class
-    const totalItems = await prisma.orderItem.count({
-        where: {
-            order: { class_id: parseInt(classId), status: { not: 2 } },
-            status: { not: 2 }
-        }
+    const classInfo = await prisma.classes.findUnique({
+        where: { id: parseInt(classId) },
+        select: { expected_students: true }
     });
 
-    // Count students with active orders
-    const studentCount = await prisma.order.count({
-        where: { class_id: parseInt(classId), status: { not: 2 } }
-    });
+    const expectedStudents = parseInt(classInfo?.expected_students || 0);
+    if (!expectedStudents || expectedStudents <= 0) return 0;
 
-    if (studentCount === 0) return 0;
-
-    const totalFee = totalItems > threshold ? baseFee + extraFee : baseFee;
-    const perStudent = totalFee / studentCount;
+    const totalFee = expectedStudents > threshold ? baseFee + extraFee : baseFee;
+    const perStudent = totalFee / expectedStudents;
 
     return Math.round(perStudent * 100) / 100;
 };
