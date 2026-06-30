@@ -33,7 +33,6 @@ export const checkExpiredHoldOrders = async () => {
             }
         });
 
-        console.log(`[Expiry Worker] Successfully locked ${updateResult.count} expired hold orders: ${orderIds.join(', ')}`);
 
         return { success: true, count: updateResult.count, lockedIds: orderIds };
     } catch (error) {

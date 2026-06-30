@@ -488,6 +488,11 @@ export const getMyOrder = async (req, res) => {
             size: item.selectedSize,
             price: getPriceForType(item.product_type)
         }));
+        const productSubtotal = Math.round(productPriceBreakdown.reduce((sum, item) => sum + item.price, 0) * 100) / 100;
+        const handlingFee = await calculateHandlingFeePerStudent(order.class_id);
+        const shippingFee = await getShippingCostForOrder(order.delivery_details);
+        const knownCharges = Math.round((productSubtotal + handlingFee + shippingFee) * 100) / 100;
+        const otherCharges = Math.max(0, Math.round((totalAmount - knownCharges) * 100) / 100);
 
         // If partial_paid: identify which products still need payment
         // We assume amount_paid covers the first N products in order of creation
@@ -516,6 +521,15 @@ export const getMyOrder = async (req, res) => {
                 ...order,
                 balance_due: balanceDue,
                 product_price_breakdown: productPriceBreakdown,
+                pricing_breakdown: {
+                    product_subtotal: productSubtotal,
+                    delivery_charges: shippingFee,
+                    handling_fee: handlingFee,
+                    other_charges: otherCharges,
+                    order_total: totalAmount,
+                    amount_paid: amountPaid,
+                    balance_due: balanceDue
+                },
                 paid_products: paidProducts,
                 unpaid_products: unpaidProducts,
                 edit_window_open: !!editWindowOpen,

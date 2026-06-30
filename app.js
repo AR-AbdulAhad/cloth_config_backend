@@ -86,7 +86,7 @@ app.use("/api/templates", templateRoutes);
 app.use("/api/contact", contactRoutes);
 
 app.get("/", (req, res) => {
-    res.send("StudentLife Backend API v1.5 with Realtime Sockets is running");
+    res.send("StudentLife Cloth Backend is running");
 });
 
 // Multer error handler
