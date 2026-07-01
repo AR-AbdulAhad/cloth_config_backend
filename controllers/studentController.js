@@ -716,14 +716,109 @@ export const getStudentDetails = async (req, res) => {
             select: {
                 id: true, name: true, email: true, phone_number: true, year_of_birth: true, role: true, status: true,
                 consent_marketing: true, consent_production: true, created_at: true, school: true, class: true,
-                orders: { where: { status: { not: 2 } }, select: { id: true, process_status: true, payment_status: true, total_amount: true, amount_paid: true, created_at: true, order_items: { where: { status: { not: 2 } }, select: { id: true, product_type: true, selectedColor: true, selectedSize: true } } }, orderBy: { created_at: 'desc' } }
+                orders: {
+                    where: { status: { not: 2 } },
+                    select: {
+                        id: true,
+                        process_status: true,
+                        payment_status: true,
+                        total_amount: true,
+                        amount_paid: true,
+                        is_locked: true,
+                        version: true,
+                        edit_deadline: true,
+                        hold_deadline: true,
+                        paid_at: true,
+                        stripe_session_id: true,
+                        delivery_details: true,
+                        created_at: true,
+                        updated_at: true,
+                        selected_logo_id: true,
+                        logo: { select: { id: true, name: true, file_path: true } },
+                        class: { select: { id: true, name: true, graduation_year: true, change_deadline: true } },
+                        order_items: {
+                            where: { status: { not: 2 } },
+                            select: {
+                                id: true,
+                                product_type: true,
+                                selectedColor: true,
+                                selectedSize: true,
+                                design_config: true,
+                                status: true,
+                                created_at: true
+                            },
+                            orderBy: { created_at: 'asc' }
+                        }
+                    },
+                    orderBy: { created_at: 'desc' }
+                }
             }
         });
-        if (!student) return res.status(404).json({ success: false, message: "Student not found" });
-        if (student.role !== 'student') return res.status(400).json({ success: false, message: "User is not a student" });
+
+        if (!student) return res.status(404).json({ success: false, message: "User not found" });
+
+        // Allow student and class_representative — block admin and other roles
+        if (!['student', 'class_representative'].includes(student.role))
+            return res.status(400).json({ success: false, message: "User is not a student or class representative" });
+
+        // Class rep can only view users in their own class
         if (req.user.role === 'class_representative' && student.class?.id !== req.user.class_id)
-            return res.status(403).json({ success: false, message: "Unauthorized: student is not in your class" });
-        res.json({ success: true, data: student });
+            return res.status(403).json({ success: false, message: "Unauthorized: user is not in your class" });
+
+        // Fetch garment prices for breakdown
+        const priceSettings = await prisma.setting.findMany({ where: { key: { startsWith: 'price_' } } });
+        const PRICES = Object.fromEntries(priceSettings.map(s => [s.key.replace('price_', ''), parseFloat(s.value)]));
+        const DEFAULT_PRICES = { 'T-SHIRT': 200, 'SWEATSHIRT': 350, 'HOODIE': 450, 'ZIPPERHOODIE': 500, 'SWEATPANTS': 300, 'SHORTS': 250 };
+        const getPriceForType = (type) => PRICES[type] ?? DEFAULT_PRICES[type] ?? 0;
+
+        // Compute balance_due + per-product paid/unpaid breakdown for each order
+        const ordersWithBreakdown = student.orders.map(order => {
+            const totalAmount = parseFloat(order.total_amount || 0);
+            const amountPaid  = parseFloat(order.amount_paid  || 0);
+            const balanceDue  = Math.max(0, Math.round((totalAmount - amountPaid) * 100) / 100);
+
+            // Product-wise breakdown
+            const productBreakdown = order.order_items.map(item => ({
+                ...item,
+                price: getPriceForType(item.product_type)
+            }));
+
+            let paidProducts = [], unpaidProducts = [];
+            if (['paid', 'partial_paid'].includes(order.process_status)) {
+                let running = 0;
+                for (const p of productBreakdown) {
+                    if (running + p.price <= amountPaid + 0.001) {
+                        paidProducts.push(p);
+                        running += p.price;
+                    } else {
+                        unpaidProducts.push(p);
+                    }
+                }
+            } else {
+                unpaidProducts = productBreakdown;
+            }
+
+            const now = new Date();
+            const editWindowOpen = order.edit_deadline ? now < new Date(order.edit_deadline) : false;
+
+            // Parse delivery_details if string
+            let deliveryDetails = order.delivery_details;
+            if (typeof deliveryDetails === 'string') {
+                try { deliveryDetails = JSON.parse(deliveryDetails); } catch { /* keep as string */ }
+            }
+
+            return {
+                ...order,
+                delivery_details: deliveryDetails,
+                balance_due: balanceDue,
+                product_price_breakdown: productBreakdown,
+                paid_products: paidProducts,
+                unpaid_products: unpaidProducts,
+                edit_window_open: editWindowOpen,
+            };
+        });
+
+        res.json({ success: true, data: { ...student, orders: ordersWithBreakdown } });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }
@@ -780,7 +875,7 @@ export const listAllStudents = async (req, res) => {
         const skip = (pageNum - 1) * limitNum;
 
         const where = {
-            role: 'student',
+            role: { in: ['student', 'class_representative'] },
             status: status !== undefined ? parseInt(status) : { not: 2 },
             ...(school_id && { school_id: parseInt(school_id) }),
             ...(class_id && { class_id: parseInt(class_id) }),
