@@ -10,6 +10,8 @@ import prisma from "../config/prisma.js";
  * - Per student fee = totalFee / expected_students
  */
 export const calculateHandlingFeePerStudent = async (classId) => {
+    if (!classId) return 0;   // ← null/undefined classId → no fee
+
     const settings = await prisma.setting.findMany({
         where: { key: { in: ['handling_fee', 'handling_fee_enabled', 'handling_fee_threshold', 'handling_fee_extra'] } }
     });

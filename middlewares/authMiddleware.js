@@ -35,11 +35,11 @@ export const authMiddleware = (requiredRole) => {
             // Allow both admin and class_representative to have elevated access
             if (requiredRole && 
                 req.user.role !== requiredRole && 
-                req.user.role !== 'admin' && 
-                req.user.role !== 'class_representative') {
+                req.user.role !== 'admin' ) {
                 return res.status(403).json({ message: "Insufficient permissions" });
             }
-
+// && 
+//                 req.user.role !== 'class_representative'
             next();
         } catch (error) {
             return res.status(401).json({ message: "Invalid token" });
