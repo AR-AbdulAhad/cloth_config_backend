@@ -108,15 +108,22 @@ const getShippingCostForOrder = async (deliveryDetails) => {
 // ─────────────────────────────────────────────────────────────────────────────
 export const placeOrder = async (req, res) => {
     try {
-        let { student_id, class_id, garments, delivery_details, logo_id } = req.body;
+        const { id: reqUserId, role: reqUserRole } = req.user;
 
-        // ── Input validation ──────────────────────────────────────────────────
-        if (!student_id || isNaN(Number(student_id)))
-            return res.status(400).json({ success: false, message: "Invalid or missing student_id." });
+        // Only student & class_representative can place orders
+        if (!["student", "class_representative"].includes(reqUserRole)) {
+            return res.status(403).json({ success: false, message: "Only students and class representatives can place orders." });
+        }
+
+        let { class_id, garments, delivery_details, logo_id } = req.body;
+
+        // Always use authenticated user's ID — ignore frontend-sent student_id
+        const studentId = parseInt(reqUserId);
+        const student_id = studentId; // keep for compat
+
         if (!class_id || isNaN(Number(class_id)))
             return res.status(400).json({ success: false, message: "Invalid or missing class_id." });
 
-        const studentId = Number(student_id);
         const classId = Number(class_id);
         const logoId = logo_id ? Number(logo_id) : null;
 
@@ -420,7 +427,14 @@ export const placeOrder = async (req, res) => {
 
 export const getMyOrder = async (req, res) => {
     try {
-        const studentId = req.user.id;
+        const { id, role } = req.user;
+
+        // Explicit role guard — only student & class_representative allowed
+        if (!["student", "class_representative"].includes(role)) {
+            return res.status(403).json({ success: false, message: "Only students and class representatives can access this resource." });
+        }
+
+        const studentId = parseInt(id);
         const now = new Date();
 
         // Priority 1: active unpaid / processing order
@@ -549,7 +563,13 @@ export const getMyOrder = async (req, res) => {
 
 export const getMyOrders = async (req, res) => {
     try {
-        const studentId = req.user.id;
+        const { id, role } = req.user;
+
+        if (!["student", "class_representative"].includes(role)) {
+            return res.status(403).json({ success: false, message: "Unauthorized" });
+        }
+
+        const studentId = parseInt(id);
         const orders = await prisma.order.findMany({
             where: { student_id: parseInt(studentId), status: { not: 2 } },
             include: {
@@ -608,18 +628,24 @@ export const reorderFromVersion = async (req, res) => {
 
 export const getMyOrderHistory = async (req, res) => {
     try {
-        const studentId = req.user.id;
-        const page = parseInt(req.query.page) || 1;
+        const { id, role } = req.user;
+
+        if (!["student", "class_representative"].includes(role)) {
+            return res.status(403).json({ success: false, message: "Unauthorized" });
+        }
+
+        const studentId = parseInt(id);
+        const page  = parseInt(req.query.page)  || 1;
         const limit = parseInt(req.query.limit) || 50;
-        const skip = (page - 1) * limit;
+        const skip  = (page - 1) * limit;
 
         if (!prisma.orderHistory) {
             return res.status(503).json({ success: false, message: "Order history feature not yet migrated.", data: [] });
         }
 
-        const total = await prisma.orderHistory.count({ where: { order: { student_id: parseInt(studentId) }, status: { not: 2 } } });
+        const total = await prisma.orderHistory.count({ where: { order: { student_id: studentId }, status: { not: 2 } } });
         const history = await prisma.orderHistory.findMany({
-            where: { order: { student_id: parseInt(studentId) }, status: { not: 2 } },
+            where: { order: { student_id: studentId }, status: { not: 2 } },
             include: { order: { include: { order_items: true } } },
             orderBy: { created_at: 'desc' },
             skip, take: limit
@@ -634,13 +660,13 @@ export const getMyOrderHistory = async (req, res) => {
 export const deleteHistory = async (req, res) => {
     try {
         const { id } = req.params;
-        const studentId = req.user.id;
+        const userId = parseInt(req.user.id);
         const history = await prisma.orderHistory.findUnique({ where: { id: parseInt(id) }, include: { order: true } });
-        if (!history || history.order.student_id !== studentId)
+        if (!history || history.order.student_id !== userId)
             return res.status(403).json({ success: false, message: "Unauthorized to delete this history." });
 
         await prisma.orderHistory.update({ where: { id: parseInt(id) }, data: { status: 2 } });
-        if (req.io) req.io.emit(`history_update_${studentId}`, { action: 'deleted', id });
+        if (req.io) req.io.emit(`history_update_${userId}`, { action: 'deleted', id });
         res.json({ success: true, message: "History entry deleted." });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });

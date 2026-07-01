@@ -10,15 +10,11 @@ import { listSchools } from "../controllers/schoolController.js";
 
 const router = express.Router();
 const studentAuth = authMiddleware("student");
-const crMiddleware = authMiddleware("class_representative");
 
 router.get("/dashboard/:schoolId/:classId", studentAuth, getConfiguratorData);
 router.get("/my-order", studentAuth, getMyOrder);
-router.get("/my-order", crMiddleware, getMyOrder);
 router.get("/my-order-history", studentAuth, getMyOrderHistory);
-router.get("/my-order-history", crMiddleware, getMyOrderHistory);
 router.delete("/history/:id", studentAuth, deleteHistory);
-router.delete("/history/:id", crMiddleware, deleteHistory);
 router.get("/profile", studentAuth, getMyProfile);  
 // router.post("/back-designs", studentAuth, listMyBackDesigns);
 router.post("/back-designs", studentAuth, getMyClassBackDesign);
