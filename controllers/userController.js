@@ -221,12 +221,49 @@ export const editClassRep = async (req, res) => {
 
 export const removeClassRep = async (req, res) => {
     try {
-        const id = parseInt(req.params.id);
-        await prisma.user.delete({
-            where: { id },
-            // data: { status: 2 }
+        const repId = parseInt(req.params.id);
+
+        const rep = await prisma.user.findUnique({
+            where: { id: repId },
+            include: {
+                orders: { select: { id: true } },
+                logos:  { select: { id: true } }
+            }
         });
-        res.json({ success: true, message: "Class Representative deleted" });
+
+        if (!rep) return res.status(404).json({ success: false, message: "Class representative not found" });
+        if (rep.role !== 'class_representative')
+            return res.status(400).json({ success: false, message: "User is not a class representative" });
+
+        // ── Full cleanup in a transaction ─────────────────────────────────────
+        await prisma.$transaction(async (tx) => {
+            // 1. Nullify changed_by in order_history (no FK relation to User)
+            await tx.orderHistory.updateMany({
+                where: { changed_by: repId },
+                data:  { changed_by: null }
+            });
+
+            // 2. Delete order-related data
+            const orderIds = rep.orders.map(o => o.id);
+            if (orderIds.length > 0) {
+                await tx.orderHistory.deleteMany({ where: { order_id: { in: orderIds } } });
+                await tx.orderItem.deleteMany({   where: { order_id: { in: orderIds } } });
+                await tx.order.deleteMany({       where: { student_id: repId } });
+            }
+
+            // 3. Delete logos uploaded by this user
+            await tx.logo.deleteMany({ where: { uploaded_by: repId } });
+
+            // 4. Unassign from class (set class_id to null so the class is freed)
+            if (rep.class_id) {
+                await tx.user.update({ where: { id: repId }, data: { class_id: null } });
+            }
+
+            // 5. Hard-delete the user — fresh start if same email re-registers
+            await tx.user.delete({ where: { id: repId } });
+        });
+
+        res.json({ success: true, message: `Class representative "${rep.name}" and all associated data deleted.` });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }
