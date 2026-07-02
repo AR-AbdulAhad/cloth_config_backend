@@ -964,8 +964,16 @@ export const getMyClassStudentCount = async (req, res) => {
 
         const [classInfo, totalStudents, studentsWithOrders] = await Promise.all([
             prisma.classes.findUnique({ where: { id: classId }, select: { id: true, name: true, graduation_year: true, expected_students: true } }),
+            // Only count actual students (not class_representative or admin)
             prisma.user.count({ where: { class_id: classId, role: 'student', status: { not: 2 } } }),
-            prisma.order.count({ where: { class_id: classId, status: { not: 2 } } })
+            // Only count orders placed by students (not class_representative)
+            prisma.order.count({
+                where: {
+                    class_id: classId,
+                    status: { not: 2 },
+                    student: { role: 'student' }
+                }
+            })
         ]);
 
         if (!classInfo) return res.status(404).json({ success: false, message: "Class not found" });

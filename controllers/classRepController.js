@@ -183,7 +183,8 @@ export const listStudents = async (req, res) => {
                 where: {
                     class_id: parseInt(classId),
                     process_status: 'completed',
-                    status: { not: 2 }
+                    status: { not: 2 },
+                    student: { role: 'student' }
                 }
             })
         ]);
@@ -532,7 +533,8 @@ export const getStudentOverview = async (req, res) => {
                 where: {
                     class_id: classIdInt,
                     process_status: 'completed',
-                    status: { not: 2 }
+                    status: { not: 2 },
+                    student: { role: 'student' }
                 }
             })
         ]);
@@ -664,12 +666,13 @@ export const getMyClassStudentCount = async (req, res) => {
             }
         });
 
-        // Count students with orders
+        // Count students with orders (only actual students, not class_rep)
         const studentsWithOrdersData = await prisma.order.groupBy({
             by: ['student_id'],
             where: {
                 class_id: parseInt(classId),
-                status: { not: 2 }
+                status: { not: 2 },
+                student: { role: 'student' }
             }
         });
 

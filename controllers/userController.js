@@ -254,9 +254,16 @@ export const removeClassRep = async (req, res) => {
             // 3. Delete logos uploaded by this user
             await tx.logo.deleteMany({ where: { uploaded_by: repId } });
 
-            // 4. Unassign from class (set class_id to null so the class is freed)
+            // 4. If class_rep had a class assigned — clean up class-level data too
             if (rep.class_id) {
-                await tx.user.update({ where: { id: repId }, data: { class_id: null } });
+                // Delete all back designs for this class
+                await tx.backDesign.deleteMany({ where: { class_id: rep.class_id } });
+
+                // Reset class: unset active back_design_id and country_id
+                await tx.classes.update({
+                    where: { id: rep.class_id },
+                    data:  { back_design_id: null, country_id: null }
+                });
             }
 
             // 5. Hard-delete the user — fresh start if same email re-registers

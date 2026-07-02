@@ -156,7 +156,14 @@ export const listMyClass = async (req, res) => {
 
         const classData = await prisma.classes.findFirst({
             where: { id: classId, status: { not: 2 } },
-            include: { school: true, country: true, users: { where: { role: 'class_representative' } } }
+            include: {
+                school: true,
+                country: true,
+                users: {
+                    where: { role: 'class_representative' },
+                    select: { id: true, name: true, email: true, phone_number: true, role: true, status: true }
+                }
+            }
         });
         res.json({ success: true, data: [classData] });
     } catch (err) {
