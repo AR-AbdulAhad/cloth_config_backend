@@ -853,20 +853,24 @@ export const getStudentDetails = async (req, res) => {
 export const deleteStudent = async (req, res) => {
     try {
         const studentId = parseInt(req.params.id);
-        const student = await prisma.user.findUnique({ where: { id: studentId }, include: { orders: { where: { status: { not: 2 } }, select: { id: true, process_status: true, payment_status: true, amount_paid: true } } } });
-        if (!student) return res.status(404).json({ success: false, message: "Student not found" });
-        if (student.role !== 'student') return res.status(400).json({ success: false, message: "User is not a student" });
-        if (student.status === 1) return res.status(400).json({ success: false, message: "Student is already disabled" });
-        if (student.status === 2) return res.status(400).json({ success: false, message: "Student is already permanently deleted" });
+        const student = await prisma.user.findUnique({
+            where: { id: studentId },
+            include: { orders: { where: { status: { not: 2 } }, select: { id: true, process_status: true, payment_status: true, amount_paid: true } } }
+        });
+        if (!student) return res.status(404).json({ success: false, message: "User not found" });
+        if (!['student', 'class_representative'].includes(student.role))
+            return res.status(400).json({ success: false, message: "User is not a student or class representative" });
+        if (student.status === 1) return res.status(400).json({ success: false, message: "User is already disabled" });
+        if (student.status === 2) return res.status(400).json({ success: false, message: "User is already permanently deleted" });
         if (req.user.role === 'class_representative' && student.class_id !== req.user.class_id)
-            return res.status(403).json({ success: false, message: "Unauthorized: student is not in your class" });
+            return res.status(403).json({ success: false, message: "Unauthorized: user is not in your class" });
 
         const paidOrders = student.orders.filter(o => o.payment_status === 'paid' || o.payment_status === 'partial');
         if (paidOrders.length > 0)
-            return res.status(400).json({ success: false, message: `Cannot disable student. They have ${paidOrders.length} paid/partial order(s).` });
+            return res.status(400).json({ success: false, message: `Cannot disable user. They have ${paidOrders.length} paid/partial order(s).` });
 
         await prisma.user.update({ where: { id: studentId }, data: { status: 1 } });
-        res.json({ success: true, message: `Student "${student.name}" has been disabled.`, data: { student_id: studentId, name: student.name, status: 1 } });
+        res.json({ success: true, message: `User "${student.name}" has been disabled.`, data: { student_id: studentId, name: student.name, status: 1 } });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }
@@ -876,18 +880,42 @@ export const permanentDeleteStudent = async (req, res) => {
     try {
         const studentId = parseInt(req.params.id);
         const { confirm } = req.body;
-        if (confirm !== 'DELETE') return res.status(400).json({ success: false, message: "Please confirm by sending { confirm: 'DELETE' } in request body" });
+        if (confirm !== 'DELETE')
+            return res.status(400).json({ success: false, message: "Please confirm by sending { confirm: 'DELETE' } in request body" });
 
-        const student = await prisma.user.findUnique({ where: { id: studentId }, include: { orders: { select: { id: true, payment_status: true } } } });
-        if (!student) return res.status(404).json({ success: false, message: "Student not found" });
-        if (student.role !== 'student') return res.status(400).json({ success: false, message: "User is not a student" });
+        const student = await prisma.user.findUnique({
+            where: { id: studentId },
+            include: { orders: { select: { id: true, payment_status: true } } }
+        });
+        if (!student) return res.status(404).json({ success: false, message: "User not found" });
+        if (!['student', 'class_representative'].includes(student.role))
+            return res.status(400).json({ success: false, message: "User is not a student or class representative" });
 
         const paidOrders = student.orders.filter(o => o.payment_status === 'paid' || o.payment_status === 'partial');
         if (paidOrders.length > 0)
-            return res.status(400).json({ success: false, message: `Cannot permanently delete. Student has ${paidOrders.length} paid/partial order(s).` });
+            return res.status(400).json({ success: false, message: `Cannot permanently delete. User has ${paidOrders.length} paid/partial order(s).` });
 
-        await prisma.user.delete({ where: { id: studentId } });
-        res.json({ success: true, message: `Student "${student.name}" has been permanently deleted.` });
+        // ── Full cleanup in a transaction ─────────────────────────────────────
+        await prisma.$transaction(async (tx) => {
+            // 1. Nullify changed_by in order_history
+            //    This field has no FK relation to User in schema — must clear manually
+            await tx.orderHistory.updateMany({
+                where: { changed_by: studentId },
+                data: { changed_by: null }
+            });
+
+            // 2. Delete user — Prisma cascade handles everything else:
+            //    logos (uploaded_by → Cascade)
+            //    orders (student_id → Cascade)
+            //      → order_items (order_id → Cascade)
+            //      → order_history (order_id → Cascade)
+            await tx.user.delete({ where: { id: studentId } });
+        });
+
+        res.json({
+            success: true,
+            message: `User "${student.name}" and all associated data have been permanently deleted.`
+        });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }
