@@ -261,41 +261,84 @@ export const sendClassRepWelcomeEmail = async (email, joinLink) => {
 };
 
 export const sendLogoUploadNotificationEmail = async ({
-    recipientEmail,
+    recipients = [],
     logoName,
     schoolName,
     uploaderName,
     uploaderEmail,
     logoId
 }) => {
-    const html = `
+
+    // 👇 Admin / others email (same for everyone except uploader)
+    const adminHtml = `
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:20px;">
         <div style="text-align:center; padding-bottom:16px;">
-            <img src="https://cloth.studentlife.dk/assets/StudentLife-BHQG9Jkp.jpg" style="max-width:200px;" alt="StudentLife">
+            <img src="https://cloth.studentlife.dk/assets/StudentLife.png" style="max-width:200px;" />
         </div>
+
         <h2 style="color:#e67e22;">Ny logo upload-notifikation</h2>
 
         <p>Et nyt logo er blevet uploadet og kræver gennemgang.</p>
 
         <div style="background:#f8f9fa;padding:15px;border-left:4px solid #e67e22;margin:15px 0;">
-            <p style="margin:4px 0;"><strong>Logo navn:</strong> ${logoName}</p>
-            <p style="margin:4px 0;"><strong>Skole:</strong> ${schoolName}</p>
-            <p style="margin:4px 0;"><strong>Uploadet af:</strong> ${uploaderName} (${uploaderEmail})</p>
-            <p style="margin:4px 0;"><strong>Status:</strong> Afventer gennemgang</p>
+            <p><strong>Logo navn:</strong> ${logoName}</p>
+            <p><strong>Skole:</strong> ${schoolName}</p>
+            <p><strong>Uploadet af:</strong> ${uploaderName} (${uploaderEmail})</p>
+            <p><strong>Status:</strong> Afventer gennemgang</p>
         </div>
 
-        <hr style="margin:20px 0;"/>
+        <hr/>
         <p style="font-size:12px;color:gray;">StudentLife notifikation</p>
     </div>`;
 
-    return sendEmail(recipientEmail, `Nyt logo upload: ${logoName} – ${schoolName}`, html);
+    // 👇 Uploader email (different message)
+    const uploaderHtml = `
+<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:20px;">
+    <div style="text-align:center; padding-bottom:16px;">
+        <img src="https://cloth.studentlife.dk/assets/StudentLife.png" style="max-width:200px;" />
+    </div>
+
+    <h2 style="color:#2ecc71;">Logo upload gennemført 🎉</h2>
+
+    <p>Dit logo er blevet uploadet med succes.</p>
+
+    <p>
+        Vi gennemgår din indsendelse inden for <strong>3 arbejdsdage</strong>, 
+        og du får besked, når gennemgangen er færdig.
+    </p>
+
+    <div style="background:#f8f9fa;padding:15px;border-left:4px solid #2ecc71;margin:15px 0;">
+        <p><strong>Logo navn:</strong> ${logoName}</p>
+        <p><strong>Skole:</strong> ${schoolName}</p>
+        <p><strong>Status:</strong> Afventer gennemgang</p>
+    </div>
+
+    <hr/>
+    <p style="font-size:12px;color:gray;">
+        StudentLife systemnotifikation
+    </p>
+</div>`;
+    // 🔥 send emails
+    const promises = recipients.map((email) => {
+        const isUploader = email === uploaderEmail;
+
+        return sendEmail(
+            email,
+            isUploader
+                ? `Your logo upload: ${logoName}`
+                : `Nyt logo upload: ${logoName} – ${schoolName}`,
+            isUploader ? uploaderHtml : adminHtml
+        );
+    });
+
+    return Promise.all(promises);
 };
 
 export const sendBackDesignUploadNotificationEmail = async ({ recipientEmail, designName, className, schoolName, uploaderName, uploaderEmail, designId }) => {
     const html = `
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:20px;">
         <div style="text-align:center; padding-bottom:16px;">
-            <img src="https://cloth.studentlife.dk/assets/StudentLife-BHQG9Jkp.jpg" style="max-width:200px;" alt="StudentLife">
+            <img src="https://cloth.studentlife.dk/assets/StudentLife.png" style="max-width:200px;" alt="StudentLife">
         </div>
         <h2 style="color:#e67e22;">Nyt ryg-design upload-notifikation</h2>
 
@@ -410,7 +453,7 @@ export const sendLogoStatusEmail = async ({ email, uploaderName, logoName, statu
 <body style="font-family:Arial,sans-serif; margin:0; padding:0; background:#fff; color:#333;">
 
 <div style="text-align:center; padding:20px;">
-    <img src="https://cloth.studentlife.dk/assets/StudentLife-BHQG9Jkp.jpg" style="max-width:200px;" alt="StudentLife">
+    <img src="https://cloth.studentlife.dk/assets/StudentLife.png" style="max-width:200px;" alt="StudentLife">
 </div>
 
 <div style="max-width:700px; margin:auto; padding:20px;">
@@ -462,7 +505,7 @@ export const sendBackDesignStatusEmail = async ({ email, uploaderName, designNam
 <body style="font-family:Arial,sans-serif; margin:0; padding:0; background:#fff; color:#333;">
 
 <div style="text-align:center; padding:20px;">
-    <img src="https://cloth.studentlife.dk/assets/StudentLife-BHQG9Jkp.jpg" style="max-width:200px;" alt="StudentLife">
+    <img src="https://cloth.studentlife.dk/assets/StudentLife.png" style="max-width:200px;" alt="StudentLife">
 </div>
 
 <div style="max-width:700px; margin:auto; padding:20px;">
