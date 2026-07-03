@@ -615,26 +615,16 @@ export const editMyBackDesign = async (req, res) => {
 
         if (!classId) return res.status(400).json({ success: false, message: "No class assigned" });
 
-        const configuredFile = req.files?.['configuredDesign']?.[0];
+        const configuredFile  = req.files?.['configuredDesign']?.[0];
         const configuredFile2 = req.files?.['configuredDesign_2']?.[0];
         const file1 = req.files?.['backDesign']?.[0];
         const file2 = req.files?.['backDesign_2']?.[0];
 
-        const design = await prisma.backDesign.findUnique({ where: { id: parseInt(designId) } });
-        if (!design) return res.status(404).json({ success: false, message: "Design not found" });
-        if (design.class_id !== classId) return res.status(403).json({ success: false, message: "Unauthorized" });
-
-        if (design.status === 2) {
-            return res.status(400).json({ success: false, message: "Cannot edit a deleted design" });
-        }
-
         const validColors = ['white', 'black', 'normal'];
-        if (designColor && !validColors.includes(designColor.toLowerCase())) {
+        if (designColor && !validColors.includes(designColor.toLowerCase()))
             return res.status(400).json({ success: false, message: "designColor must be 'white', 'black', or 'normal'" });
-        }
-        if (designColor_2 && !validColors.includes(designColor_2.toLowerCase())) {
+        if (designColor_2 && !validColors.includes(designColor_2.toLowerCase()))
             return res.status(400).json({ success: false, message: "designColor_2 must be 'white', 'black', or 'normal'" });
-        }
 
         let parsedState = null;
         if (configurator_state) {
@@ -642,28 +632,69 @@ export const editMyBackDesign = async (req, res) => {
                 parsedState = typeof configurator_state === 'string'
                     ? JSON.parse(configurator_state)
                     : configurator_state;
-            } catch {
-                parsedState = null;
-            }
+            } catch { parsedState = null; }
         }
 
-        const updated = await prisma.backDesign.update({
-            where: { id: parseInt(designId) },
+        // ── Try to find existing design ───────────────────────────────────────
+        const existingDesign = designId
+            ? await prisma.backDesign.findUnique({ where: { id: parseInt(designId) } })
+            : null;
+
+        // If found → verify ownership then UPDATE
+        if (existingDesign) {
+            if (existingDesign.class_id !== classId)
+                return res.status(403).json({ success: false, message: "Unauthorized" });
+            if (existingDesign.status === 2)
+                return res.status(400).json({ success: false, message: "Cannot edit a deleted design" });
+
+            const updated = await prisma.backDesign.update({
+                where: { id: parseInt(designId) },
+                data: {
+                    ...(name                && { name }),
+                    ...(designColor        && { designColor:         designColor.toLowerCase()   }),
+                    ...(designColor_2      && { designColor_2:       designColor_2.toLowerCase() }),
+                    ...(configuredFile     && { configured_file_path:   configuredFile.path     }),
+                    ...(configuredFile2    && { configured_file_path_2: configuredFile2.path    }),
+                    ...(file1              && { file_path:    file1.path }),
+                    ...(file2              && { file_path_2:  file2.path }),
+                    ...(parsedState        && { configurator_state: parsedState }),
+                    process_status: 'uploaded',
+                    status: 1,
+                    isFromConfigurator: true
+                }
+            });
+
+            return res.json({ success: true, message: "Design updated", data: updated, action: 'updated' });
+        }
+
+        // ── Design NOT found → CREATE a new one ───────────────────────────────
+        // Require at least one file when creating
+        if (!file1 && !configuredFile) {
+            return res.status(400).json({
+                success: false,
+                message: "Design not found. Provide at least one image (backDesign or configuredDesign) to create a new design."
+            });
+        }
+
+        const created = await prisma.backDesign.create({
             data: {
-                ...(name && { name }),
-                ...(designColor && { designColor: designColor.toLowerCase() }),
-                ...(designColor_2 && { designColor_2: designColor_2.toLowerCase() }),
-                ...(configuredFile && { configured_file_path: configuredFile.path }),
-                ...(configuredFile2 && { configured_file_path_2: configuredFile2.path }),
-                ...(file1 && { file_path: file1.path }),
-                ...(file2 && { file_path_2: file2.path }),
-                ...(parsedState && { configurator_state: parsedState }),
-                process_status: 'uploaded',
-                status: 1
+                class_id:              classId,
+                name:                  name || `back_design_${Date.now()}`,
+                file_path:             file1?.path         || configuredFile?.path || '',
+                file_path_2:           file2?.path         || null,
+                configured_file_path:  configuredFile?.path  || null,
+                configured_file_path_2: configuredFile2?.path || null,
+                designColor:           designColor  ? designColor.toLowerCase()  : 'white',
+                designColor_2:         designColor_2 ? designColor_2.toLowerCase() : 'black',
+                configurator_state:    parsedState || undefined,
+                process_status:        'uploaded',
+                isFromConfigurator:    true,
+                status:                1
             }
         });
 
-        res.json({ success: true, message: "Design updated", data: updated });
+        return res.json({ success: true, message: "Design created", data: created, action: 'created' });
+
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }
