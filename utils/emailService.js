@@ -262,12 +262,18 @@ export const sendClassRepWelcomeEmail = async (email, joinLink) => {
 
 export const sendLogoUploadNotificationEmail = async ({
     recipients = [],
+    recipientEmail,
     logoName,
     schoolName,
     uploaderName,
     uploaderEmail,
     logoId
 }) => {
+
+    // Ensure recipients includes recipientEmail if provided
+    if (recipientEmail && !recipients.includes(recipientEmail)) {
+        recipients = [recipientEmail, ...recipients];
+    }
 
     // 👇 Admin / others email (same for everyone except uploader)
     const adminHtml = `
@@ -318,17 +324,14 @@ export const sendLogoUploadNotificationEmail = async ({
         StudentLife systemnotifikation
     </p>
 </div>`;
-    // 🔥 send emails
+    // 🔥 send emails to all recipients (admin and uploader distinct)
     const promises = recipients.map((email) => {
         const isUploader = email === uploaderEmail;
-
-        return sendEmail(
-            email,
-            isUploader
-                ? `Your logo upload: ${logoName}`
-                : `Nyt logo upload: ${logoName} – ${schoolName}`,
-            isUploader ? uploaderHtml : adminHtml
-        );
+        const subject = isUploader
+            ? `Your logo upload: ${logoName}`
+            : `Nyt logo upload: ${logoName} – ${schoolName}`;
+        const html = isUploader ? uploaderHtml : adminHtml;
+        return sendEmail(email, subject, html);
     });
 
     return Promise.all(promises);
