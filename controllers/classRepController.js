@@ -1,5 +1,6 @@
 import { handlePrismaError } from "../utils/errorHandler.js";
 import prisma from "../config/prisma.js";
+import { sendEmail } from "../utils/emailService.js";
 
 
 // --- Class Management (CRUD) ---
@@ -310,48 +311,64 @@ export const generateRegistrationLink = async (req, res) => {
 
 export const uploadSchoolLogo = async (req, res) => {
     try {
-        const userId = Number(req.user.id);
+        const userId  = Number(req.user.id);
         const schoolId = Number(req.user.school_id);
         const { name } = req.body;
 
-        if (!schoolId) {
-            return res.status(400).json({
-                success: false,
-                message: "User is not assigned to any school"
-            });
-        }
-
-        if (!req.file) {
-            return res.status(400).json({
-                success: false,
-                message: "No file uploaded"
-            });
-        }
+        if (!schoolId) return res.status(400).json({ success: false, message: "User is not assigned to any school" });
+        if (!req.file)  return res.status(400).json({ success: false, message: "No file uploaded" });
 
         const logo = await prisma.logo.create({
             data: {
-                school_id: schoolId,
-                name: name || `logo_${Date.now()}`,
-                uploaded_by: userId,
-                file_path: req.file.path,
+                school_id:      schoolId,
+                name:           name || `logo_${Date.now()}`,
+                uploaded_by:    userId,
+                file_path:      req.file.path,
                 process_status: 'uploaded',
-                status: 1 // 1 = inactive/pending until admin approves (0) or rejects (2)
+                status: 1
             }
         });
 
-        return res.json({
-            success: true,
-            message: "Logo uploaded successfully",
-            data: logo
-        });
+        // Send confirmation email to the uploader (in Danish)
+        try {
+            const uploader = await prisma.user.findUnique({
+                where: { id: userId },
+                select: { name: true, email: true }
+            });
+            if (uploader?.email) {
+                await sendEmail(
+                    uploader.email,
+                    'Dit logo er modtaget — StudentLife',
+                    `
+                    <div style="font-family:Arial,sans-serif;padding:24px;max-width:560px;color:#333;">
+                        <h2 style="color:#006d75;">Logo modtaget ✓</h2>
+                        <p>Hej <strong>${uploader.name}</strong>,</p>
+                        <p>Dit logo <strong>"${logo.name}"</strong> er blevet uploadet og afventer nu gennemgang af vores team.</p>
+                        <div style="background:#f6f8fa;border-left:4px solid #006d75;border-radius:4px;padding:16px;margin:20px 0;">
+                            <p style="margin:0;font-size:14px;color:#555;">
+                                ⏱ Vores team gennemgår dit logo inden for <strong>2–3 hverdage</strong>.<br/>
+                                Når det er godkendt, vil det være tilgængeligt til brug i tøjkonfiguratoren.
+                            </p>
+                        </div>
+                        <p style="color:#777;font-size:13px;">
+                            Har du spørgsmål, er du velkommen til at kontakte os.<br/>
+                            — StudentLife-teamet
+                        </p>
+                        <hr style="border:none;border-top:1px solid #eee;margin:24px 0;"/>
+                        <p style="font-size:11px;color:#aaa;">studentlife.dk</p>
+                    </div>
+                    `
+                );
+            }
+        } catch (emailErr) {
+            console.error('Logo upload confirmation email failed:', emailErr.message);
+        }
+
+        return res.json({ success: true, message: "Logo uploaded successfully", data: logo });
 
     } catch (err) {
         console.error(err);
-        return res.status(500).json({
-            success: false,
-            message: "Upload failed",
-            error: err.message
-        });
+        return res.status(500).json({ success: false, message: "Upload failed", error: err.message });
     }
 };
 
