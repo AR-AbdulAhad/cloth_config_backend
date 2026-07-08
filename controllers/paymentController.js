@@ -59,19 +59,10 @@ async function getShippingCostForOrder(deliveryDetails) {
     return Math.round(selectedRate * 100) / 100;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// createCheckoutSession
-//
-// Supports:
-//   • First-time payment  (on_hold  → locked_awaiting_payment → pending_payment)
-//   • Additional payment  (partial_paid → pending_payment)
-//
-// In both cases only the balance_due (total - amount_paid) is charged.
-// ─────────────────────────────────────────────────────────────────────────────
 export const createCheckoutSession = async (req, res) => {
     try {
         const { orderId } = req.body;
-        const studentId   = req.user.id;
+        const studentId = req.user.id;
 
         if (!orderId) return res.status(400).json({ success: false, message: "Order ID is required" });
 
@@ -97,8 +88,8 @@ export const createCheckoutSession = async (req, res) => {
         }
 
         const totalAmount = parseFloat(order.total_amount || 0);
-        const amountPaid  = parseFloat(order.amount_paid  || 0);
-        const balanceDue  = Math.max(0, Math.round((totalAmount - amountPaid) * 100) / 100);
+        const amountPaid = parseFloat(order.amount_paid || 0);
+        const balanceDue = Math.max(0, Math.round((totalAmount - amountPaid) * 100) / 100);
 
         // Already fully paid
         if (balanceDue <= 0) {
@@ -208,12 +199,12 @@ export const createCheckoutSession = async (req, res) => {
                     changed_by: studentId,
                     version: order.version,
                     changes: {
-                        previousLogo:     order.selected_logo_id,
+                        previousLogo: order.selected_logo_id,
                         previousDelivery: order.delivery_details,
-                        previousItems:    order.order_items,
-                        previousTotal:    order.total_amount,
-                        amountPaid:       amountPaid,
-                        balanceDue:       balanceDue
+                        previousItems: order.order_items,
+                        previousTotal: order.total_amount,
+                        amountPaid: amountPaid,
+                        balanceDue: balanceDue
                     },
                     changes_summary: `Version ${order.version} — ${order.process_status === 'partial_paid' ? 'additional' : 'first'} payment of ${balanceDue.toFixed(2)} DKK initiated.`
                 }
@@ -222,26 +213,24 @@ export const createCheckoutSession = async (req, res) => {
             console.error("History save before payment failed:", histErr.message);
         }
 
-        // Create Stripe session
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ["card"],
             line_items,
             mode: "payment",
             success_url: `${process.env.LIVE_FRONTEND_URL}payment-success?session_id={CHECKOUT_SESSION_ID}`,
-            cancel_url:  `${process.env.LIVE_FRONTEND_URL}payment-cancelled`,
+            cancel_url: `${process.env.LIVE_FRONTEND_URL}payment-cancelled`,
             metadata: {
-                order_id:    order.id.toString(),
+                order_id: order.id.toString(),
                 payment_type: order.process_status === 'partial_paid' ? 'additional' : 'first',
-                balance_due:  balanceDue.toString()
+                balance_due: balanceDue.toString()
             }
         });
 
-        // Transition order to pending_payment
         await prisma.order.update({
             where: { id: order.id },
             data: {
                 stripe_session_id: session.id,
-                process_status: 'pending_payment'
+                process_status: 'on_hold'
             }
         });
 
@@ -283,10 +272,10 @@ async function applyPaymentToOrder(session, io) {
     }
 
     const sessionAmountDKK = session.amount_total / 100;
-    const prevAmountPaid   = parseFloat(order.amount_paid || 0);
-    const newAmountPaid    = Math.round((prevAmountPaid + sessionAmountDKK) * 100) / 100;
-    const totalAmount      = parseFloat(order.total_amount || 0);
-    const newBalanceDue    = Math.max(0, Math.round((totalAmount - newAmountPaid) * 100) / 100);
+    const prevAmountPaid = parseFloat(order.amount_paid || 0);
+    const newAmountPaid = Math.round((prevAmountPaid + sessionAmountDKK) * 100) / 100;
+    const totalAmount = parseFloat(order.total_amount || 0);
+    const newBalanceDue = Math.max(0, Math.round((totalAmount - newAmountPaid) * 100) / 100);
 
     // Determine final status
     const isFullyPaid = newBalanceDue <= 0;
@@ -295,7 +284,7 @@ async function applyPaymentToOrder(session, io) {
     // This is the window in which student can add more products
     // Set only when fully paid for the first time
     const addBusinessDays = (startDate, days) => {
-        let date  = new Date(startDate);
+        let date = new Date(startDate);
         let count = 0;
         while (count < days) {
             date.setDate(date.getDate() + 1);
@@ -317,16 +306,16 @@ async function applyPaymentToOrder(session, io) {
     await prisma.order.update({
         where: { id: order_id },
         data: {
-            amount_paid:           newAmountPaid,
-            payment_status:        newPaymentStatus,
-            process_status:        newProcessStatus,
+            amount_paid: newAmountPaid,
+            payment_status: newPaymentStatus,
+            process_status: newProcessStatus,
             // Unlock for editing during window; lock only when fully paid and window closed
-            is_locked:             false,  // always allow editing until edit_deadline
-            paid_at:               isFullyPaid && !order.paid_at ? new Date() : order.paid_at,
-            edit_deadline:         editDeadline,
-            status:                1,
+            is_locked: false,  // always allow editing until edit_deadline
+            paid_at: isFullyPaid && !order.paid_at ? new Date() : order.paid_at,
+            edit_deadline: editDeadline,
+            status: 1,
             stripe_payment_intent: session.payment_intent,
-            stripe_session_id:     session.id
+            stripe_session_id: session.id
         }
     });
 
@@ -342,15 +331,15 @@ async function applyPaymentToOrder(session, io) {
     if (isFullyPaid) {
         setImmediate(async () => {
             try {
-                const { generatePDF }   = await import("../utils/pdfGenerator.js");
+                const { generatePDF } = await import("../utils/pdfGenerator.js");
                 const { generateExcel } = await import("../utils/excelGenerator.js");
 
                 const orderWithDetails = await prisma.order.findUnique({
                     where: { id: order_id },
                     include: {
-                        student:     { select: { name: true, email: true } },
-                        class:       { select: { id: true, name: true } },
-                        logo:        { select: { file_path: true } },
+                        student: { select: { name: true, email: true } },
+                        class: { select: { id: true, name: true } },
+                        logo: { select: { file_path: true } },
                         order_items: { where: { status: { not: 2 } } }
                     }
                 });
@@ -363,21 +352,21 @@ async function applyPaymentToOrder(session, io) {
                 });
 
                 const results = orderWithDetails.order_items.map(item => ({
-                    class_name:    orderWithDetails.class.name,
-                    student_name:  orderWithDetails.student.name,
+                    class_name: orderWithDetails.class.name,
+                    student_name: orderWithDetails.student.name,
                     student_email: orderWithDetails.student.email,
-                    product_type:  item.product_type,
-                    color:         item.selectedColor,
-                    size:          item.selectedSize,
+                    product_type: item.product_type,
+                    color: item.selectedColor,
+                    size: item.selectedSize,
                     design_config: item.design_config,
-                    logo_path:     orderWithDetails.logo?.file_path || null,
-                    name_list:     nameList?.items.map(ni => ni.name).join(', ') || null
+                    logo_path: orderWithDetails.logo?.file_path || null,
+                    name_list: nameList?.items.map(ni => ni.name).join(', ') || null
                 }));
 
                 const pkg = await prisma.productionPackage.create({
                     data: {
-                        class_id:          orderWithDetails.class.id,
-                        package_name:      `Order_${order_id}_${orderWithDetails.student.name}_${Date.now()}`,
+                        class_id: orderWithDetails.class.id,
+                        package_name: `Order_${order_id}_${orderWithDetails.student.name}_${Date.now()}`,
                         production_status: "processing"
                     }
                 });
@@ -397,11 +386,11 @@ async function applyPaymentToOrder(session, io) {
     // Socket events
     if (io) {
         io.emit(`order_update_${order.student_id}`, {
-            action:         isFullyPaid ? 'payment_received' : 'partial_payment_received',
+            action: isFullyPaid ? 'payment_received' : 'partial_payment_received',
             payment_status: newPaymentStatus,
             process_status: newProcessStatus,
-            amount_paid:    newAmountPaid,
-            balance_due:    newBalanceDue
+            amount_paid: newAmountPaid,
+            balance_due: newBalanceDue
         });
         io.emit('new_order_admin', { studentId: order.student_id, action: isFullyPaid ? 'paid' : 'partial_paid' });
     }
@@ -416,6 +405,36 @@ async function applyPaymentToOrder(session, io) {
 // After full payment, sets edit_deadline = class change_deadline so the student
 // can still edit inside the allowed window.
 // ─────────────────────────────────────────────────────────────────────────────
+async function revertOrderIfUnpaid(session) {
+    const order_id = parseInt(session.metadata.order_id);
+
+    const order = await prisma.order.findUnique({ where: { id: order_id } });
+    if (!order) return null;
+
+    // A newer session may have replaced this one, or payment already succeeded
+    if (order.stripe_session_id !== session.id) return order;
+    if (order.process_status !== 'pending_payment') return order;
+
+    const wasFirstPayment = session.metadata.payment_type === 'first';
+
+    // Give the student a fresh hold window so the lock-cron doesn't
+    // immediately re-lock the order right after we revert it.
+    const newHoldDeadline = new Date();
+    newHoldDeadline.setDate(newHoldDeadline.getDate() + 5); // adjust to match your hold-window length
+
+    const updated = await prisma.order.update({
+        where: { id: order_id },
+        data: {
+            process_status: 'on_hold',
+            stripe_session_id: null,
+            is_locked: false,
+            locked_at: null,
+            hold_deadline: newHoldDeadline
+        }
+    });
+
+    return updated;
+}
 export const stripeWebhook = async (req, res) => {
     if (!stripe) {
         return res.status(503).json({ error: "Stripe not configured properly" });
@@ -441,6 +460,12 @@ export const stripeWebhook = async (req, res) => {
         } catch (error) {
             console.error(`❌ Error updating order after payment:`, error);
         }
+    } else if (event.type === "checkout.session.expired") {
+        try {
+            await revertOrderIfUnpaid(event.data.object);
+        } catch (error) {
+            console.error(`❌ Error reverting order after expired session:`, error);
+        }
     }
 
     res.json({ received: true });
@@ -463,7 +488,7 @@ export const verifyPaymentSession = async (req, res) => {
         }
 
         const { sessionId } = req.params;
-        const studentId     = req.user.id;
+        const studentId = req.user.id;
 
         const session = await stripe.checkout.sessions.retrieve(sessionId);
         const orderId = parseInt(session.metadata?.order_id);
@@ -509,7 +534,7 @@ export const verifyPaymentSession = async (req, res) => {
 export const getOrderPaymentBreakdown = async (req, res) => {
     try {
         const { orderId } = req.params;
-        const studentId   = req.user.id;
+        const studentId = req.user.id;
 
         const order = await prisma.order.findFirst({
             where: { id: parseInt(orderId), student_id: studentId, status: { not: 2 } },
@@ -521,27 +546,27 @@ export const getOrderPaymentBreakdown = async (req, res) => {
         const getPriceForType = await getGarmentPrices();
 
         const totalAmount = parseFloat(order.total_amount || 0);
-        const amountPaid  = parseFloat(order.amount_paid  || 0);
-        const balanceDue  = Math.max(0, Math.round((totalAmount - amountPaid) * 100) / 100);
+        const amountPaid = parseFloat(order.amount_paid || 0);
+        const balanceDue = Math.max(0, Math.round((totalAmount - amountPaid) * 100) / 100);
 
         // Classify each product as paid vs unpaid
         // We assume amount_paid covers products in creation order (oldest first)
         let runningPaid = 0;
         const products = order.order_items.map(item => {
-            const price    = getPriceForType(item.product_type);
-            const isPaid   = runningPaid + price <= amountPaid + 0.001;
+            const price = getPriceForType(item.product_type);
+            const isPaid = runningPaid + price <= amountPaid + 0.001;
             if (isPaid) runningPaid += price;
             return {
-                id:           item.id,
+                id: item.id,
                 product_type: item.product_type,
-                color:        item.selectedColor,
-                size:         item.selectedSize,
+                color: item.selectedColor,
+                size: item.selectedSize,
                 price,
-                is_paid:      isPaid
+                is_paid: isPaid
             };
         });
 
-        const paidProducts   = products.filter(p =>  p.is_paid);
+        const paidProducts = products.filter(p => p.is_paid);
         const unpaidProducts = products.filter(p => !p.is_paid);
 
         const now = new Date();
@@ -550,18 +575,18 @@ export const getOrderPaymentBreakdown = async (req, res) => {
         res.json({
             success: true,
             data: {
-                order_id:       order.id,
+                order_id: order.id,
                 process_status: order.process_status,
                 payment_status: order.payment_status,
-                total_amount:   totalAmount,
-                amount_paid:    amountPaid,
-                balance_due:    balanceDue,
+                total_amount: totalAmount,
+                amount_paid: amountPaid,
+                balance_due: balanceDue,
                 products,
-                paid_products:   paidProducts,
+                paid_products: paidProducts,
                 unpaid_products: unpaidProducts,
                 edit_window_open: editWindowOpen,
-                edit_deadline:    order.edit_deadline,
-                class_deadline:   order.class?.change_deadline
+                edit_deadline: order.edit_deadline,
+                class_deadline: order.class?.change_deadline
             }
         });
     } catch (err) {
@@ -596,7 +621,7 @@ export const getOrderPricing = async (req, res) => {
         res.json({
             success: true,
             pricing: {
-                per_product:          perProduct,
+                per_product: perProduct,
                 subtotal,
                 handlingFee,
                 shippingFee,
@@ -618,11 +643,11 @@ export const testAmount = async (req, res) => {
         const { amount } = req.body;
         res.json({
             success: true,
-            received:     amount,
-            type:         typeof amount,
-            parsed:       parseFloat(amount),
+            received: amount,
+            type: typeof amount,
+            parsed: parseFloat(amount),
             stripeAmount: Math.round(parseFloat(amount) * 100),
-            backToDKK:    (Math.round(parseFloat(amount) * 100) / 100).toFixed(2)
+            backToDKK: (Math.round(parseFloat(amount) * 100) / 100).toFixed(2)
         });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
