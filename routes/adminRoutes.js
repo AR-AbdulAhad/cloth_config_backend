@@ -18,6 +18,7 @@ import { getSettings, updateSetting, updateSettings } from "../controllers/setti
 import { listShippingRates, getShippingRate, createShippingRate, updateShippingRate, toggleShippingRateStatus, deleteShippingRate } from "../controllers/shippingController.js";
 import { getClassNameList, approveNameList, rejectNameList, getAllNameList, unlockNameList } from "../controllers/nameListControllers.js";
 import { getAllOrders, getOrderDetails, getOrderHistory, unlockOrder, lockOrder, debugOrderHistory } from "../controllers/orderController.js";
+import { addEducationProgram, listEducationPrograms, editEducationProgram, deleteEducationProgram } from "../controllers/educationProgramController.js";
 
 const router = express.Router();
 const adminMiddleware = authMiddleware("admin");
@@ -131,6 +132,12 @@ router.get("/namelist/:class_id/class", adminMiddleware, getClassNameList);
 router.put("/namelist/:id/approve", adminMiddleware, approveNameList);
 router.put("/namelist/:id/reject", adminMiddleware, rejectNameList);
 router.put("/namelist/:id/unlock", adminMiddleware, unlockNameList);
+
+// Education Programs
+router.post("/education-program/create", adminMiddleware, addEducationProgram);
+router.get("/education-programs", adminMiddleware, listEducationPrograms);
+router.put("/education-program/:id/update", adminMiddleware, editEducationProgram);
+router.delete("/education-program/:id/delete", adminMiddleware, deleteEducationProgram);
 
 // Production Packages
 router.get("/orders/list", adminMiddleware, getAllOrders);

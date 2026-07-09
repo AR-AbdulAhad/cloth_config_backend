@@ -14,8 +14,8 @@ export const generateOrderProductionFiles = async (req, res) => {
             where: { id: orderId },
             include: {
                 student: { select: { name: true, email: true } },
-                class:   { select: { id: true, name: true } },
-                logo:    { select: { file_path: true } },
+                class: { select: { id: true, name: true } },
+                logo: { select: { file_path: true } },
                 order_items: { where: { status: { not: 2 } } }
             }
         });
@@ -36,22 +36,22 @@ export const generateOrderProductionFiles = async (req, res) => {
 
         // Build rows — one row per order item
         const results = order.order_items.map(item => ({
-            class_name:    order.class.name,
-            student_name:  order.student.name,
+            class_name: order.class.name,
+            student_name: order.student.name,
             student_email: order.student.email,
-            product_type:  item.product_type,
-            color:         item.selectedColor,
-            size:          item.selectedSize,
+            product_type: item.product_type,
+            color: item.selectedColor,
+            size: item.selectedSize,
             design_config: item.design_config,
-            logo_path:     order.logo?.file_path || null,
-            name_list:     nameList?.items.map(ni => ni.name).join(', ') || null
+            logo_path: order.logo?.file_path || null,
+            name_list: nameList?.items.map(ni => ni.name).join(', ') || null
         }));
 
         // Create package record
         const pkg = await prisma.productionPackage.create({
             data: {
-                class_id:         order.class.id,
-                package_name:     `Order_${orderId}_${order.student.name}_${Date.now()}`,
+                class_id: order.class.id,
+                package_name: `Order_${orderId}_${order.student.name}_${Date.now()}`,
                 production_status: "processing"
             }
         });
@@ -65,8 +65,8 @@ export const generateOrderProductionFiles = async (req, res) => {
         await prisma.productionPackage.update({
             where: { id: pkg.id },
             data: {
-                pdf_file_path:    pdfPath,
-                excel_file_path:  excelPath,
+                pdf_file_path: pdfPath,
+                excel_file_path: excelPath,
                 production_status: "ready"
             }
         });
@@ -77,9 +77,9 @@ export const generateOrderProductionFiles = async (req, res) => {
             data: {
                 packageId: pkg.id,
                 orderId,
-                student:   order.student.name,
-                pdf:       pdfPath,
-                excel:     excelPath
+                student: order.student.name,
+                pdf: pdfPath,
+                excel: excelPath
             }
         });
     } catch (err) {
@@ -176,7 +176,15 @@ export const sendClassStatusEmail = async (req, res) => {
             where: { class_id: classId, status: { not: 2 } },
             include: {
                 student: { select: { name: true, email: true } },
-                class: { select: { school: { select: { education_type: true } } } }
+                class: {
+                    select: {
+                        education_program: {
+                            select: {
+                                name: true
+                            }
+                        }
+                    }
+                }
             }
         });
 
@@ -192,7 +200,7 @@ export const sendClassStatusEmail = async (req, res) => {
                     orderId: order.id,
                     status,
                     trackingCode,
-                    educationType: order.class?.school?.education_type
+                    educationType: order.class?.education_program?.name
                 })
             )
         );
@@ -214,7 +222,15 @@ export const sendFollowUpToClass = async (req, res) => {
             select: {
                 name: true,
                 email: true,
-                class: { select: { school: { select: { education_type: true } } } }
+                class: {
+                    select: {
+                        education_program: {
+                            select: {
+                                name: true
+                            }
+                        }
+                    }
+                }
             }
         });
 

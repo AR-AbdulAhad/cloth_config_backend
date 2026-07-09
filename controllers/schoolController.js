@@ -3,9 +3,21 @@ import { handlePrismaError } from "../utils/errorHandler.js";
 
 export const addSchool = async (req, res) => {
     try {
-        const { name, education_type } = req.body;
+        const { name, educationProgramIds = [] } = req.body;
+
         const school = await prisma.school.create({
-            data: { name, education_type, status: 0 }
+            data: {
+                name,
+                status: 0,
+                educationPrograms: {
+                    connect: educationProgramIds.map(id => ({
+                        id: Number(id),
+                    })),
+                },
+            },
+            include: {
+                educationPrograms: true,
+            },
         });
         res.status(201).json({ success: true, message: "School created", data: school });
     } catch (err) {
@@ -35,11 +47,10 @@ export const listSchools = async (req, res) => {
                 where,
                 skip,
                 take: limitNum,
-                orderBy: {
-                    created_at: 'desc',
-                },
+                orderBy: { created_at: 'desc' },
                 include: {
-                    classes: true, 
+                    classes: true,
+                    educationPrograms: true,
                 },
             }),
             prisma.school.count({ where }),
@@ -67,11 +78,23 @@ export const listSchools = async (req, res) => {
 export const editSchool = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, education_type, status } = req.body;
+        const { name, status, educationProgramIds, education_program_ids } = req.body;
+        const programIds = educationProgramIds ?? education_program_ids;
+
         const school = await prisma.school.update({
             where: { id: parseInt(id) },
-            data: { name, education_type, status }
+            data: {
+                name,
+                status,
+                educationPrograms: {
+                    set: programIds ? programIds.map(pid => ({ id: Number(pid) })) : undefined,
+                },
+            },
+            include: {
+                educationPrograms: true,
+            },
         });
+
         res.json({ success: true, message: "School updated", data: school });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
@@ -80,12 +103,51 @@ export const editSchool = async (req, res) => {
 
 export const removeSchool = async (req, res) => {
     try {
-        const { id } = req.params;
-        await prisma.school.update({
-            where: { id: parseInt(id) },
-            data: { status: 2 }
+        const schoolId = parseInt(req.params.id);
+        // Fetch related IDs
+        const [classes, users, schoolLogos] = await Promise.all([
+            prisma.classes.findMany({ where: { school_id: schoolId }, select: { id: true } }),
+            prisma.user.findMany({ where: { school_id: schoolId }, select: { id: true, class_id: true, role: true } }),
+            prisma.logo.findMany({ where: { school_id: schoolId }, select: { id: true } })
+        ]);
+        const classIds = classes.map(c => c.id);
+        const userIds = users.map(u => u.id);
+        const studentIds = users.filter(u => u.role === 'student').map(u => u.id);
+        const logoIds = schoolLogos.map(l => l.id);
+
+        // Gather orders related to students or class reps of this school
+        const orders = await prisma.order.findMany({
+            where: { student_id: { in: studentIds } },
+            select: { id: true }
         });
-        res.json({ success: true, message: "School deleted" });
+        const orderIds = orders.map(o => o.id);
+
+        // Transaction to clean up all related data
+        await prisma.$transaction(async (tx) => {
+            // Delete order related data
+            if (orderIds.length > 0) {
+                await tx.orderHistory.deleteMany({ where: { order_id: { in: orderIds } } });
+                await tx.orderItem.deleteMany({ where: { order_id: { in: orderIds } } });
+                await tx.order.deleteMany({ where: { id: { in: orderIds } } });
+            }
+            // Delete logos uploaded by users of this school
+            await tx.logo.deleteMany({ where: { uploaded_by: { in: userIds } } });
+            // Delete school logos
+            await tx.logo.deleteMany({ where: { id: { in: logoIds } } });
+            // Delete back designs linked to classes of this school
+            if (classIds.length > 0) {
+                await tx.backDesign.deleteMany({ where: { class_id: { in: classIds } } });
+                await tx.productionPackage.deleteMany({ where: { class_id: { in: classIds } } });
+                await tx.nameList.deleteMany({ where: { class_id: { in: classIds } } });
+                await tx.classes.deleteMany({ where: { id: { in: classIds } } });
+            }
+            // Delete users (students & class reps)
+            await tx.user.deleteMany({ where: { id: { in: userIds } } });
+            // Finally delete the school record
+            await tx.school.delete({ where: { id: schoolId } });
+        });
+        res.json({ success: true, message: `School and all related data deleted.` });
+
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }
@@ -98,7 +160,7 @@ export const getSchoolStats = async (req, res) => {
 
         const school = await prisma.school.findUnique({
             where: { id: parseInt(id) },
-            select: { id: true, name: true, education_type: true }
+            include: { educationPrograms: true }
         });
         if (!school) return res.status(404).json({ success: false, message: "School not found" });
 
@@ -126,7 +188,8 @@ export const getSchoolClasses = async (req, res) => {
             prisma.classes.findMany({
                 where: { school_id: parseInt(id), status: { not: 2 } },
                 include: {
-                    _count: { select: { orders: true } }
+                    education_program: true,
+                    students: { where: { status: { not: 2 } } }
                 },
                 skip,
                 take: limitNum,
@@ -137,19 +200,13 @@ export const getSchoolClasses = async (req, res) => {
 
         const classIds = classes.map(c => c.id);
 
-        const [studentCounts, classReps] = await Promise.all([
-            prisma.user.groupBy({
-                by: ['class_id'],
-                where: { class_id: { in: classIds }, role: 'student', status: { not: 2 } },
-                _count: { id: true }
-            }),
+        const [classReps] = await Promise.all([
             prisma.user.findMany({
                 where: { class_id: { in: classIds }, role: 'class_representative', status: { not: 2 } },
                 select: { id: true, name: true, email: true, phone_number: true, class_id: true }
             })
         ]);
 
-        const countMap = Object.fromEntries(studentCounts.map(s => [s.class_id, s._count.id]));
         const repMap = Object.fromEntries(classReps.map(r => [r.class_id, r]));
 
         const data = classes.map(c => ({
@@ -158,10 +215,9 @@ export const getSchoolClasses = async (req, res) => {
             graduation_year: c.graduation_year,
             process_status: c.process_status,
             change_deadline: c.change_deadline,
-            order_locked: c.order_locked,
+            education_program: c.education_program,
             class_rep: repMap[c.id] || null,
-            student_count: countMap[c.id] || 0,
-            order_count: c._count.orders
+            student_count: c.students.length
         }));
 
         res.json({ success: true, data, pagination: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) } });

@@ -7,15 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum EducationType {
-  STX
-  HF
-  HHX
-  HTX
-  EUD
-  EUX
-  Efterskole
-}
+
 
 enum Role {
   admin
@@ -100,15 +92,28 @@ model Font {
 model School {
   id             Int           @id @default(autoincrement())
   name           String        @db.VarChar(255)
-  education_type EducationType
+
   status         Int           @default(0)
   created_at     DateTime      @default(now())
 
   classes Classes[]
   users   User[]
   logos   Logo[]  
+  educationPrograms EducationProgram[]
 
   @@map("schools")
+}
+
+model EducationProgram {
+  id         Int      @id @default(autoincrement())
+  name       String   @unique
+  status     Int      @default(0)
+  created_at DateTime @default(now())
+
+  schools School[]
+  classes Classes[]
+  users   User[]
+  @@map("education_programs")
 }
 
 model Classes {
@@ -124,14 +129,16 @@ model Classes {
   country_id          Int?
   expected_students   Int?        // Target number of students for graduation caps
   status              Int         @default(0)
+  education_program_id Int?
   created_at          DateTime    @default(now())
 
-  school             School              @relation(fields: [school_id], references: [id], onDelete: Cascade)
-  active_back_design BackDesign?         @relation("ActiveBackDesign", fields: [back_design_id], references: [id], onDelete: SetNull)
-  country            Country?            @relation(fields: [country_id], references: [id], onDelete: SetNull)
-  users              User[]
-  back_designs       BackDesign[]        @relation("ClassBackDesigns")
-  name_lists         NameList?
+  school              School              @relation(fields: [school_id], references: [id], onDelete: Cascade)
+  education_program   EducationProgram?   @relation(fields: [education_program_id], references: [id], onDelete: SetNull)
+  active_back_design  BackDesign?         @relation("ActiveBackDesign", fields: [back_design_id], references: [id], onDelete: SetNull)
+  country             Country?            @relation(fields: [country_id], references: [id], onDelete: SetNull)
+  users               User[]
+  back_designs        BackDesign[]        @relation("ClassBackDesigns")
+  name_lists          NameList?
   orders             Order[]
   production_package ProductionPackage[]
 
@@ -153,10 +160,12 @@ model User {
   reset_otp          String?  @db.VarChar(10)
   reset_otp_expires  DateTime?
   status             Int      @default(0)
+  education_program_id Int?
   created_at         DateTime @default(now())
 
   school School?  @relation(fields: [school_id], references: [id], onDelete: SetNull)
   class  Classes? @relation(fields: [class_id], references: [id], onDelete: SetNull)
+  education_program EducationProgram?  @relation(fields: [education_program_id], references: [id], onDelete: SetNull)
   logos  Logo[]
   orders Order[]
 

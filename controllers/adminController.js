@@ -193,7 +193,14 @@ export const sendDeadlineReminder = async (req, res) => {
 
         const classData = await prisma.classes.findUnique({
             where: { id: classId },
-            select: { change_deadline: true, school: { select: { education_type: true } } }
+            select: {
+                change_deadline: true,
+                education_program: {
+                    select: {
+                        education_type: true
+                    }
+                }
+            }
         });
 
         if (!classData) {
@@ -216,7 +223,7 @@ export const sendDeadlineReminder = async (req, res) => {
                     studentName: order.student.name,
                     orderId: order.id,
                     changeDeadline: classData.change_deadline,
-                    educationType: classData.school?.education_type
+                    educationType: classData.education_program?.education_type
                 })
             )
         );
@@ -327,15 +334,15 @@ export const getAllClassesWithStudentCount = async (req, res) => {
         const [classes, total] = await Promise.all([
             prisma.classes.findMany({
                 where,
-                include: { 
+                include: {
                     school: { select: { name: true } },
-                    users: { 
+                    users: {
                         where: { role: 'class_representative', status: { not: 2 } },
                         select: { name: true, email: true }
                     }
                 },
-                skip, 
-                take: limitNum, 
+                skip,
+                take: limitNum,
                 orderBy: { created_at: 'desc' }
             }),
             prisma.classes.count({ where })
@@ -371,8 +378,8 @@ export const getAllClassesWithStudentCount = async (req, res) => {
                     expected_students: classItem.expected_students || 0,
                     registered_students: registeredCount,
                     students_with_orders: studentsWithOrders,
-                    completion_percentage: classItem.expected_students > 0 
-                        ? Math.round((registeredCount / classItem.expected_students) * 100) 
+                    completion_percentage: classItem.expected_students > 0
+                        ? Math.round((registeredCount / classItem.expected_students) * 100)
                         : 0,
                     order_locked: classItem.order_locked,
                     process_status: classItem.process_status
@@ -380,14 +387,14 @@ export const getAllClassesWithStudentCount = async (req, res) => {
             })
         );
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             data: classesWithCounts,
-            pagination: { 
-                total, 
-                page: pageNum, 
-                limit: limitNum, 
-                totalPages: Math.ceil(total / limitNum) 
+            pagination: {
+                total,
+                page: pageNum,
+                limit: limitNum,
+                totalPages: Math.ceil(total / limitNum)
             }
         });
     } catch (err) {

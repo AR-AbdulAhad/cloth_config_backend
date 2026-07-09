@@ -25,6 +25,7 @@ export const listClasses = async (req, res) => {
                         name: true,
                     }
                 },
+                 education_program: true,
                 users: {
                     where: {
                         role: 'class_representative',
@@ -94,11 +95,13 @@ export const editClass = async (req, res) => {
         if (parseInt(id) !== req.user.class_id) {
             return res.status(403).json({ success: false, message: "Unauthorized to edit this class" });
         }
-        const { name, graduation_year, education_type, change_deadline, status } = req.body;
+        const { name, graduation_year, educationProgramId, change_deadline, status } = req.body;
         const data = {};
         if (name) data.name = name;
         if (graduation_year) data.graduation_year = parseInt(graduation_year);
-        if (education_type) data.education_type = education_type;
+        if (educationProgramId) {
+            data.education_program_id = parseInt(educationProgramId);
+        }
         if (change_deadline) data.change_deadline = new Date(change_deadline);
         if (status !== undefined) data.status = parseInt(status);
 
@@ -161,7 +164,7 @@ export const listStudents = async (req, res) => {
                     consent_production: true,
                     created_at: true,
                     school: true,
-                    class:  true,
+                    class: true,
                     orders: {
                         where: { status: { not: 2 } },
                         select: {
@@ -197,23 +200,23 @@ export const listStudents = async (req, res) => {
                 order_label = latestOrder.process_status === 'completed' ? 'Order Completed' : 'In Progress';
             }
             return {
-                id:                 student.id,
-                name:               student.name,
-                email:              student.email,
-                phone_number:       student.phone_number,
-                year_of_birth:      student.year_of_birth,
-                status:             student.status,
-                consent_marketing:  student.consent_marketing,
+                id: student.id,
+                name: student.name,
+                email: student.email,
+                phone_number: student.phone_number,
+                year_of_birth: student.year_of_birth,
+                status: student.status,
+                consent_marketing: student.consent_marketing,
                 consent_production: student.consent_production,
-                created_at:         student.created_at,
-                school:             student.school,
-                class:              student.class,
+                created_at: student.created_at,
+                school: student.school,
+                class: student.class,
                 order_label,
-                order_status:       latestOrder?.process_status  ?? 'no_order',
-                payment_status:     latestOrder?.payment_status  ?? null,
-                total_amount:       latestOrder ? parseFloat(latestOrder.total_amount ?? 0) : null,
-                amount_paid:        latestOrder ? parseFloat(latestOrder.amount_paid  ?? 0) : null,
-                order_id:           latestOrder?.id ?? null
+                order_status: latestOrder?.process_status ?? 'no_order',
+                payment_status: latestOrder?.payment_status ?? null,
+                total_amount: latestOrder ? parseFloat(latestOrder.total_amount ?? 0) : null,
+                amount_paid: latestOrder ? parseFloat(latestOrder.amount_paid ?? 0) : null,
+                order_id: latestOrder?.id ?? null
             };
         });
 
@@ -222,12 +225,12 @@ export const listStudents = async (req, res) => {
             data,
             pagination: {
                 total,
-                page:       pageNum,
-                limit:      limitNum,
+                page: pageNum,
+                limit: limitNum,
                 totalPages: Math.ceil(total / limitNum) || 0
             },
             summary: {
-                total_registered:       total,
+                total_registered: total,
                 total_completed_orders: totalCompletedOrders
             }
         });
@@ -252,7 +255,7 @@ export const generateRegistrationLink = async (req, res) => {
         const encoded = Buffer.from(payload).toString('base64');
 
         // You might want to get this base URL from configs or env
-        const baseUrl = process.env.LIVE_FRONTEND_URL ;
+        const baseUrl = process.env.LIVE_FRONTEND_URL;
         const registrationLink = `${baseUrl}register?${encoded}`;
 
         res.json({
@@ -311,19 +314,19 @@ export const generateRegistrationLink = async (req, res) => {
 
 export const uploadSchoolLogo = async (req, res) => {
     try {
-        const userId  = Number(req.user.id);
+        const userId = Number(req.user.id);
         const schoolId = Number(req.user.school_id);
         const { name } = req.body;
 
         if (!schoolId) return res.status(400).json({ success: false, message: "User is not assigned to any school" });
-        if (!req.file)  return res.status(400).json({ success: false, message: "No file uploaded" });
+        if (!req.file) return res.status(400).json({ success: false, message: "No file uploaded" });
 
         const logo = await prisma.logo.create({
             data: {
-                school_id:      schoolId,
-                name:           name || `logo_${Date.now()}`,
-                uploaded_by:    userId,
-                file_path:      req.file.path,
+                school_id: schoolId,
+                name: name || `logo_${Date.now()}`,
+                uploaded_by: userId,
+                file_path: req.file.path,
                 process_status: 'uploaded',
                 status: 1
             }
@@ -704,8 +707,8 @@ export const getMyClassStudentCount = async (req, res) => {
                 expected_students: classInfo.expected_students || 0,
                 registered_students: registeredCount,
                 students_with_orders: studentsWithOrders,
-                completion_percentage: classInfo.expected_students > 0 
-                    ? Math.round((registeredCount / classInfo.expected_students) * 100) 
+                completion_percentage: classInfo.expected_students > 0
+                    ? Math.round((registeredCount / classInfo.expected_students) * 100)
                     : 0
             }
         });

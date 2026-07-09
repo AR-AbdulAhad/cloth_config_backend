@@ -4,14 +4,28 @@ import { sendStatusEmail } from "../utils/emailService.js";
 
 export const addClass = async (req, res) => {
     try {
-        const { school_id, name, graduation_year, change_deadline, class_rep_id } = req.body;
+        const { school_id, name, graduation_year, change_deadline, class_rep_id, educationProgramId } = req.body;
+        // Validate that the provided educationProgramId is linked to the school
+        if (!educationProgramId) {
+            return res.status(400).json({ success: false, message: "Missing educationProgramId" });
+        }
+        const programExists = await prisma.educationProgram.findFirst({
+            where: {
+                id: parseInt(educationProgramId),
+                schools: { some: { id: parseInt(school_id) } }
+            }
+        });
+        if (!programExists) {
+            return res.status(400).json({ success: false, message: "Invalid educationProgramId for the given school" });
+        }
         const newClass = await prisma.classes.create({
             data: {
                 name,
                 graduation_year: parseInt(graduation_year),
                 school_id: parseInt(school_id),
                 status: 0,
-                change_deadline: change_deadline ? new Date(change_deadline) : null
+                change_deadline: change_deadline ? new Date(change_deadline) : null,
+                education_program_id: parseInt(educationProgramId)
             }
         });
 
@@ -53,13 +67,22 @@ export const listAllClasses = async (req, res) => {
         const [classes, total] = await Promise.all([
             prisma.classes.findMany({
                 where,
-                include: { school: true, users: { where: { role: 'class_representative', status: { not: 2 } } } },
+                include: {
+                    school: true,
+                    education_program: true,
+                    users: { where: { status: { not: 2 } } }
+                },
                 skip, take: limitNum, orderBy: { created_at: 'desc' }
             }),
             prisma.classes.count({ where })
         ]);
 
-        const data = classes.map(c => ({ ...c, is_locked: c.order_locked }));
+        const data = classes.map(c => ({
+            ...c,
+            is_locked: c.order_locked,
+            education_program: c.education_program,
+            student_count: c.users.filter(u => u.role === 'student').length
+        }));
 
         res.json({ success: true, data, pagination: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) } });
     } catch (err) {
@@ -70,12 +93,26 @@ export const listAllClasses = async (req, res) => {
 export const editClass = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, graduation_year, change_deadline, status } = req.body;
+        const { name, graduation_year, change_deadline, status, educationProgramId } = req.body;
         const data = {};
         if (name) data.name = name;
         if (graduation_year) data.graduation_year = parseInt(graduation_year);
         if (change_deadline) data.change_deadline = new Date(change_deadline);
         if (status !== undefined) data.status = parseInt(status);
+        if (educationProgramId) {
+            // Validate that the educationProgramId belongs to the class's school
+            const existingClass = await prisma.classes.findUnique({ where: { id: parseInt(id) } });
+            const programExists = await prisma.educationProgram.findFirst({
+                where: {
+                    id: parseInt(educationProgramId),
+                    schools: { some: { id: existingClass?.school_id } }
+                }
+            });
+            if (!programExists) {
+                return res.status(400).json({ success: false, message: "Invalid educationProgramId for the class's school" });
+            }
+            data.education_program_id = parseInt(educationProgramId);
+        }
 
         const updated = await prisma.classes.update({ where: { id: parseInt(id) }, data });
         res.json({ success: true, message: "Class updated", data: updated });
@@ -112,7 +149,15 @@ export const lockClass = async (req, res) => {
                 where: { class_id: parseInt(classId), status: { not: 2 } },
                 include: {
                     student: { select: { name: true, email: true } },
-                    class: { select: { school: { select: { education_type: true } } } }
+                    class: {
+                        select: {
+                            education_program: {
+                                select: {
+                                    education_type: true
+                                }
+                            }
+                        }
+                    }
                 }
             });
             await Promise.allSettled(
@@ -122,7 +167,7 @@ export const lockClass = async (req, res) => {
                         studentName: order.student.name,
                         orderId: order.id,
                         status: 'production_ready',
-                        educationType: order.class?.school?.education_type
+                        educationType: order.class?.education_program?.name
                     })
                 )
             );
@@ -159,6 +204,7 @@ export const listMyClass = async (req, res) => {
             include: {
                 school: true,
                 country: true,
+                education_program: true,
                 users: {
                     where: { role: 'class_representative' },
                     select: { id: true, name: true, email: true, phone_number: true, role: true, status: true }
@@ -259,7 +305,15 @@ export const updateClassProcessStatus = async (req, res) => {
                     where: { class_id: parseInt(classId), status: { not: 2 } },
                     include: {
                         student: { select: { name: true, email: true } },
-                        class: { select: { school: { select: { education_type: true } } } }
+                        class: {
+                            select: {
+                                education_program: {
+                                    select: {
+                                        education_type: true
+                                    }
+                                }
+                            }
+                        }
                     }
                 });
 
@@ -271,7 +325,7 @@ export const updateClassProcessStatus = async (req, res) => {
                             orderId: order.id,
                             status: process_status,
                             trackingCode: trackingCode || null,
-                            educationType: order.class?.school?.education_type
+                            educationType: order.class?.education_program?.education_type
                         })
                     )
                 );
@@ -417,13 +471,19 @@ export const getStudentCount = async (req, res) => {
                 expected_students: classInfo.expected_students || 0,
                 registered_students: registeredCount,
                 students_with_orders: studentsWithOrders,
-                completion_percentage: classInfo.expected_students > 0 
-                    ? Math.round((registeredCount / classInfo.expected_students) * 100) 
+                completion_percentage: classInfo.expected_students > 0
+                    ? Math.round((registeredCount / classInfo.expected_students) * 100)
                     : 0
             }
         });
     } catch (err) {
+        console.error("getStudentCount Error:", err);
+
         const error = handlePrismaError(err);
-        res.status(error.status).json({ success: false, error: error.message });
+
+        res.status(error.status || 500).json({
+            success: false,
+            error: error.message,
+        });
     }
 };
