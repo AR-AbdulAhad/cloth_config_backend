@@ -7,6 +7,7 @@ import { listBackDesigns, getConfiguratorBackDesign, listMyBackDesigns, getMyCla
 import { getSettings } from "../controllers/settingController.js";
 import { listShippingRates } from "../controllers/shippingController.js";
 import { listSchools } from "../controllers/schoolController.js";
+import { getClassDeliveryDetails } from "../controllers/classRepController.js";
 
 const router = express.Router();
 const studentAuth = authMiddleware("student");
@@ -15,7 +16,7 @@ router.get("/dashboard/:schoolId/:classId", studentAuth, getConfiguratorData);
 router.get("/my-order", studentAuth, getMyOrder);
 router.get("/my-order-history", studentAuth, getMyOrderHistory);
 router.delete("/history/:id", studentAuth, deleteHistory);
-router.get("/profile", studentAuth, getMyProfile);  
+router.get("/profile", studentAuth, getMyProfile);
 // router.post("/back-designs", studentAuth, listMyBackDesigns);
 router.post("/back-designs", studentAuth, getMyClassBackDesign);
 router.post("/place-order", studentAuth, placeOrder);
@@ -26,6 +27,7 @@ router.get("/settings", studentAuth, getSettings);
 router.get("/shipping-rates", studentAuth, listShippingRates);
 router.post("/schools", studentAuth, listSchools);
 router.post("/schools/:schoolId/classes", studentAuth, getClassesBySchool);
+router.get("/class/:classId/delivery", studentAuth, getClassDeliveryDetails);
 
 // Library designs — browse by country/nationality
 router.get("/countries", studentAuth, getStudyTripCountries);

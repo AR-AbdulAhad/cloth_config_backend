@@ -117,7 +117,7 @@ export const removeSchool = async (req, res) => {
 
         // Gather orders related to students or class reps of this school
         const orders = await prisma.order.findMany({
-            where: { student_id: { in: studentIds } },
+            where: { OR: [{ student_id: { in: studentIds } }, { class_id: { in: classIds } }] },
             select: { id: true }
         });
         const orderIds = orders.map(o => o.id);
@@ -131,9 +131,7 @@ export const removeSchool = async (req, res) => {
                 await tx.order.deleteMany({ where: { id: { in: orderIds } } });
             }
             // Delete logos uploaded by users of this school
-            await tx.logo.deleteMany({ where: { uploaded_by: { in: userIds } } });
-            // Delete school logos
-            await tx.logo.deleteMany({ where: { id: { in: logoIds } } });
+            await tx.logo.deleteMany({ where: { OR: [{ school_id: schoolId }, { uploaded_by: { in: userIds } }] } });
             // Delete back designs linked to classes of this school
             if (classIds.length > 0) {
                 await tx.backDesign.deleteMany({ where: { class_id: { in: classIds } } });
@@ -187,10 +185,7 @@ export const getSchoolClasses = async (req, res) => {
         const [classes, total] = await Promise.all([
             prisma.classes.findMany({
                 where: { school_id: parseInt(id), status: { not: 2 } },
-                include: {
-                    education_program: true,
-                    students: { where: { status: { not: 2 } } }
-                },
+                include: { education_program: true, users: { where: { role: 'student', status: { not: 2 } } } },
                 skip,
                 take: limitNum,
                 orderBy: { created_at: 'desc' }
@@ -217,7 +212,7 @@ export const getSchoolClasses = async (req, res) => {
             change_deadline: c.change_deadline,
             education_program: c.education_program,
             class_rep: repMap[c.id] || null,
-            student_count: c.students.length
+            student_count: c.users.length
         }));
 
         res.json({ success: true, data, pagination: { total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) } });

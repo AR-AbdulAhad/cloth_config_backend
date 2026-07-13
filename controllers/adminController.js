@@ -359,13 +359,13 @@ export const getAllClassesWithStudentCount = async (req, res) => {
                             status: { not: 2 }
                         }
                     }),
-                    prisma.order.count({
+                    prisma.order.groupBy({
+                        by: ['student_id'],
                         where: {
                             class_id: classItem.id,
                             status: { not: 2 }
-                        },
-                        distinct: ['student_id']
-                    })
+                        }
+                    }).then(res => res.length)
                 ]);
 
                 return {

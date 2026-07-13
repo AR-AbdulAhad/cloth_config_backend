@@ -454,13 +454,14 @@ export const getStudentCount = async (req, res) => {
         });
 
         // Count students with orders
-        const studentsWithOrders = await prisma.order.count({
+        const studentsWithOrdersData = await prisma.order.groupBy({
+            by: ['student_id'],
             where: {
                 class_id: parseInt(classId),
                 status: { not: 2 } // Exclude deleted orders
-            },
-            distinct: ['student_id']
+            }
         });
+        const studentsWithOrders = studentsWithOrdersData.length;
 
         res.json({
             success: true,

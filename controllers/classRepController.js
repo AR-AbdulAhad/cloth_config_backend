@@ -717,3 +717,60 @@ export const getMyClassStudentCount = async (req, res) => {
         res.status(error.status).json({ success: false, error: error.message });
     }
 };
+
+export const getClassDeliveryDetails = async (req, res) => {
+    try {
+        const { classId } = req.params;
+        if (req.user.class_id !== parseInt(classId)) {
+            return res.status(403).json({ success: false, message: "You can only view delivery details for your assigned class" });
+        }
+
+        const targetClass = await prisma.classes.findFirst({
+            where: { id: parseInt(classId), status: { not: 2 } },
+            select: { delivery_details: true }
+        });
+
+        if (!targetClass) {
+            return res.status(404).json({ success: false, message: "Class not found" });
+        }
+
+        let delivery = null;
+        if (targetClass.delivery_details) {
+            try {
+                delivery = JSON.parse(targetClass.delivery_details);
+            } catch {
+                delivery = targetClass.delivery_details;
+            }
+        }
+
+        res.json({ success: true, data: delivery });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+export const setClassDeliveryDetails = async (req, res) => {
+    try {
+        const { classId } = req.params;
+        if (req.user.class_id !== parseInt(classId)) {
+            return res.status(403).json({ success: false, message: "You can only update delivery details for your assigned class" });
+        }
+
+        const { delivery_details } = req.body;
+
+        const updatedClass = await prisma.classes.update({
+            where: { id: parseInt(classId) },
+            data: {
+                delivery_details: typeof delivery_details === 'object' ? JSON.stringify(delivery_details) : delivery_details
+            }
+        });
+
+        res.json({
+            success: true,
+            message: "Class delivery details updated successfully",
+            data: updatedClass.delivery_details
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+};

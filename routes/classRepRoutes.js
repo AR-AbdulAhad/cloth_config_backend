@@ -2,7 +2,7 @@ import express from "express";
 import path from "path";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { generateRegistrationLink } from "../controllers/userController.js";
-import { listClasses, getStudentOverview, listStudents, getAssignedClass, listMyLogos, listMyBackDesigns, setMyClassExpectedStudentCount, getMyClassStudentCount } from "../controllers/classRepController.js";
+import { listClasses, getStudentOverview, listStudents, getAssignedClass, listMyLogos, listMyBackDesigns, setMyClassExpectedStudentCount, getMyClassStudentCount, getClassDeliveryDetails, setClassDeliveryDetails } from "../controllers/classRepController.js";
 import { listMyClass, editClass } from "../controllers/classController.js";
 import { uploadSchoolLogo, deleteMyLogo, editMyLogo } from "../controllers/logoController.js";
 import { uploadClassBackDesign, getConfiguratorBackDesign, reUploadClassBackDesign, setClassStudyTripCountry, getLibraryDesignsForMyClass, getStudyTripCountries, deleteMyBackDesign, editMyBackDesign, saveConfiguratorState, loadConfiguratorState } from "../controllers/designController.js";
@@ -10,6 +10,7 @@ import multer from "multer";
 import { getNameListForUser, addNameListItem, updateNameListItem, reorderNameListItems, markNameListReady, createNameList, deleteNameListItem } from "../controllers/nameListControllers.js";
 import { getActiveFonts, setNameListFont } from "../controllers/fontController.js";
 import { getStudentDetails, deleteStudent } from "../controllers/studentController.js";
+import { listShippingRates } from "../controllers/shippingController.js";
 
 const logoStorage = multer.diskStorage({
     destination: (_req, _file, cb) => {
@@ -64,6 +65,8 @@ router.get("/get-class", middleware, listMyClass);
 router.get("/assigned-class", middleware, getAssignedClass);
 router.put("/class/:classId/expected-students", middleware, setMyClassExpectedStudentCount);
 router.get("/class/:classId/student-count", middleware, getMyClassStudentCount);
+router.get("/class/:classId/delivery", middleware, getClassDeliveryDetails);
+router.put("/class/:classId/delivery", middleware, setClassDeliveryDetails);
 // router.put("/class/:id/update", middleware, editClass);
 
 // Student Management
@@ -105,6 +108,7 @@ router.get("/name-list", middleware, getNameListForUser);
 router.post("/student-overview", middleware, getStudentOverview);
 router.post("/student-overview/:classId", middleware, getStudentOverview);
 
+router.get("/shipping-rates", middleware, listShippingRates);
 router.post("/namelist/:name_list_id/item", middleware, addNameListItem);
 router.put("/namelist/item/:item_id", middleware, updateNameListItem);
 router.put("/namelist/reorder/:name_list_id", middleware, reorderNameListItems);

@@ -39,6 +39,41 @@ export const calculateHandlingFeePerStudent = async (classId) => {
 };
 
 /**
+ * Calculate shipping fee per student for a class.
+ *
+ * The class rep sets one total shipping price for the whole class
+ * (classes.delivery_details.shippingPrice). Split evenly across
+ * expected_students, same as the handling fee.
+ */
+export const calculateShippingFeePerStudent = async (classId) => {
+    if (!classId) return 0;
+
+    const classInfo = await prisma.classes.findUnique({
+        where: { id: parseInt(classId) },
+        select: { delivery_details: true, expected_students: true }
+    });
+
+    if (!classInfo?.delivery_details) return 0;
+
+    let delivery;
+    try {
+        delivery = typeof classInfo.delivery_details === 'string'
+            ? JSON.parse(classInfo.delivery_details)
+            : classInfo.delivery_details;
+    } catch {
+        return 0;
+    }
+
+    const totalShippingPrice = parseFloat(delivery?.shippingPrice || 0);
+    if (!totalShippingPrice) return 0;
+
+    const expectedStudents = parseInt(classInfo.expected_students || 0);
+    if (!expectedStudents || expectedStudents <= 0) return 0;
+
+    return Math.round((totalShippingPrice / expectedStudents) * 100) / 100;
+};
+
+/**
  * Calculate VAT amount based on subtotal and VAT percentage from settings
  */
 export const calculateVAT = async (subtotal) => {

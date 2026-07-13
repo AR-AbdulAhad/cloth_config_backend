@@ -1,7 +1,7 @@
 import Stripe from "stripe";
 import prisma from "../config/prisma.js";
 import dotenv from "dotenv";
-import { calculateHandlingFeePerStudent, calculateOrderTotal } from "../utils/feeCalculator.js";
+import { calculateHandlingFeePerStudent, calculateOrderTotal, calculateShippingFeePerStudent } from "../utils/feeCalculator.js";
 
 dotenv.config();
 
@@ -28,35 +28,6 @@ async function getGarmentPrices() {
     const rows = await prisma.setting.findMany({ where: { key: { startsWith: 'price_' } } });
     const PRICES = Object.fromEntries(rows.map(s => [s.key.replace('price_', ''), parseFloat(s.value)]));
     return (type) => PRICES[type] ?? DEFAULT_PRICES[type] ?? 0;
-}
-
-async function getShippingCostForOrder(deliveryDetails) {
-    const normalizedDetails = typeof deliveryDetails === 'string'
-        ? (() => {
-            try {
-                return JSON.parse(deliveryDetails);
-            } catch {
-                return null;
-            }
-        })()
-        : deliveryDetails;
-
-    const countryName = normalizedDetails?.country || '';
-    if (!countryName) return 0;
-
-    const deliveryType = normalizedDetails?.deliveryType || 'regular';
-    const shippingRate = await prisma.shippingRate.findFirst({
-        where: { country_name: countryName },
-        select: { regular_delivery_rate: true, express_delivery_rate: true }
-    });
-
-    if (!shippingRate) return 0;
-
-    const selectedRate = deliveryType === 'express'
-        ? Number(shippingRate.express_delivery_rate ?? 0)
-        : Number(shippingRate.regular_delivery_rate ?? 0);
-
-    return Math.round(selectedRate * 100) / 100;
 }
 
 export const createCheckoutSession = async (req, res) => {
@@ -105,22 +76,12 @@ export const createCheckoutSession = async (req, res) => {
         let line_items;
 
         if (order.process_status === 'partial_paid' && amountPaid > 0) {
-            // Show each extra product as a separate line item
-            const getPaidTypes = () => {
-                let runningPaid = 0;
-                const paid = [], unpaid = [];
-                for (const item of order.order_items) {
-                    const price = getPriceForType(item.product_type);
-                    if (runningPaid + price <= amountPaid + 0.001) {
-                        paid.push(item);
-                        runningPaid += price;
-                    } else {
-                        unpaid.push(item);
-                    }
-                }
-                return unpaid;
-            };
-            const extraItems = getPaidTypes();
+            // Show each extra (unpaid) product as a separate line item.
+            // order_items.status is the source of truth for what's already been
+            // paid (set to 1 by applyPaymentToOrder on successful checkout) —
+            // never re-derive this by guessing from price sums, which breaks the
+            // moment two items share a price or the array order shifts.
+            const extraItems = order.order_items.filter(item => item.status === 0);
 
             if (extraItems.length > 0) {
                 line_items = extraItems.map(item => ({
@@ -187,7 +148,20 @@ export const createCheckoutSession = async (req, res) => {
                 quantity: 1
             });
         } else if (adjustment < -0.01) {
-            console.warn(`Line items (${lineItemsTotal} DKK) exceed balanceDue (${balanceDue} DKK) for order ${order.id}`);
+            // The itemized breakdown adds up to MORE than order.total_amount (the
+            // authoritative, validated figure placeOrder computed) — e.g. a stray
+            // order_item row that doesn't belong. Never let Stripe charge more than
+            // the authoritative balance due; collapse to a single line item capped
+            // at balanceDue instead of trusting the inflated per-item sum.
+            console.warn(`Line items (${lineItemsTotal} DKK) exceed balanceDue (${balanceDue} DKK) for order ${order.id} — charging balanceDue only.`);
+            line_items = [{
+                price_data: {
+                    currency: "dkk",
+                    product_data: { name: `Payment for Order #${order.id}`, description: `Total: ${balanceDue.toFixed(2)} DKK` },
+                    unit_amount: Math.round(balanceDue * 100)
+                },
+                quantity: 1
+            }];
         }
 
         // Save history before redirect
@@ -319,13 +293,14 @@ async function applyPaymentToOrder(session, io) {
         }
     });
 
-    // Update item statuses only when fully paid
-    if (isFullyPaid) {
-        await prisma.orderItem.updateMany({
-            where: { order_id },
-            data: { status: 1 }
-        });
-    }
+    // Mark whatever was still unpaid as paid now — this checkout session was built
+    // (in createCheckoutSession) to charge for exactly the then-unpaid items, so a
+    // successful completion means those specific items are covered, whether or not
+    // the order's running total happens to be fully settled.
+    await prisma.orderItem.updateMany({
+        where: { order_id, status: 0 },
+        data: { status: 1 }
+    });
 
     // Auto-generate production files (only when fully paid, in background)
     if (isFullyPaid) {
@@ -600,7 +575,7 @@ export const getOrderPaymentBreakdown = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 export const getOrderPricing = async (req, res) => {
     try {
-        const { garments, classId, delivery_details } = req.body;
+        const { garments, classId } = req.body;
 
         if (!garments || !Array.isArray(garments))
             return res.status(400).json({ success: false, message: "Garments array is required" });
@@ -615,7 +590,7 @@ export const getOrderPricing = async (req, res) => {
         });
 
         const handlingFee = classId ? await calculateHandlingFeePerStudent(classId) : 0;
-        const shippingFee = await getShippingCostForOrder(delivery_details);
+        const shippingFee = classId ? await calculateShippingFeePerStudent(classId) : 0;
         const total = Math.round((subtotal + handlingFee + shippingFee) * 100) / 100;
 
         res.json({

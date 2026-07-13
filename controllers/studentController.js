@@ -2,7 +2,7 @@ import prisma from "../config/prisma.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { sendOrderConfirmationEmail } from "../utils/emailService.js";
-import { calculateHandlingFeePerStudent } from "../utils/feeCalculator.js";
+import { calculateHandlingFeePerStudent, calculateShippingFeePerStudent } from "../utils/feeCalculator.js";
 
 export const studentLogin = async (req, res) => {
     try {
@@ -63,35 +63,6 @@ export const addBusinessDays = (startDate, days) => {
         if (day !== 0 && day !== 6) count++;
     }
     return date;
-};
-
-const getShippingCostForOrder = async (deliveryDetails) => {
-    const normalizedDetails = typeof deliveryDetails === 'string'
-        ? (() => {
-            try {
-                return JSON.parse(deliveryDetails);
-            } catch {
-                return null;
-            }
-        })()
-        : deliveryDetails;
-
-    const countryName = normalizedDetails?.country || '';
-    if (!countryName) return 0;
-
-    const deliveryType = normalizedDetails?.deliveryType || 'regular';
-    const shippingRate = await prisma.shippingRate.findFirst({
-        where: { country_name: countryName },
-        select: { regular_delivery_rate: true, express_delivery_rate: true }
-    });
-
-    if (!shippingRate) return 0;
-
-    const selectedRate = deliveryType === 'express'
-        ? Number(shippingRate.express_delivery_rate ?? 0)
-        : Number(shippingRate.regular_delivery_rate ?? 0);
-
-    return Math.round(selectedRate * 100) / 100;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -215,64 +186,14 @@ export const placeOrder = async (req, res) => {
         const DEFAULT_PRICES = { 'T-SHIRT': 200, 'SWEATSHIRT': 350, 'HOODIE': 450, 'ZIPPERHOODIE': 500, 'SWEATPANTS': 300, 'SHORTS': 250 };
         const getPriceForType = (type) => PRICES[type] ?? DEFAULT_PRICES[type] ?? 0;
 
-        // Pricing must never depend solely on what the client sent — once an item is
-        // paid for, it stays in the total even if the request omits it. So when editing
-        // an already-paid order, price the preserved existing items + only the genuinely
-        // new ones (mirrors exactly what the transaction below will persist).
-        let pricingGarments = garments || [];
-        let newOnlyGarments = garments || [];
-        if (isEditAfterPayment) {
-            const existingTypes = new Set((previousState?.order_items || []).map(i => i.product_type));
-            newOnlyGarments = (garments || []).filter(item => !existingTypes.has(item.product_type || item.type));
-            pricingGarments = [...(previousState?.order_items || []), ...newOnlyGarments];
-        }
-
-        // Per-product price breakdown (for frontend display)
-        const productPriceBreakdown = [];
-        let subtotalGarments = 0;
-        pricingGarments.forEach(item => {
-            const type = item.product_type || item.type;
-            const price = getPriceForType(type);
-            subtotalGarments += price;
-            productPriceBreakdown.push({ product_type: type, price });
-        });
-
         const handlingFee = await calculateHandlingFeePerStudent(classId);
-        const shippingFee = await getShippingCostForOrder(delivery_details);
-        const currentTotal = Math.round((subtotalGarments + handlingFee + shippingFee) * 100) / 100;
-
-        // ── Partial-payment math ──────────────────────────────────────────────
-        const prevAmountPaid = isEditAfterPayment ? parseFloat(activeOrder.amount_paid || 0) : 0;
-        const newBalanceDue = Math.max(0, Math.round((currentTotal - prevAmountPaid) * 100) / 100);
-
-        // Products that are genuinely new (not yet paid for) when editing after payment
-        const extraProducts = isEditAfterPayment
-            ? newOnlyGarments.map(item => ({ product_type: item.product_type || item.type, price: getPriceForType(item.product_type || item.type) }))
-            : [];
-
-        // Determine new process_status
-        let newProcessStatus;
-        if (isEditAfterPayment) {
-            newProcessStatus = newBalanceDue > 0 ? 'partial_paid' : 'paid';
-        } else {
-            newProcessStatus = 'on_hold';
-        }
+        const shippingFee = await calculateShippingFeePerStudent(classId);
 
         const holdDeadline = activeOrder
-            ? (isEditAfterPayment ? activeOrder.hold_deadline : activeOrder.hold_deadline)
+            ? activeOrder.hold_deadline
             : addBusinessDays(now, 3);
 
-        const orderData = {
-            student_id: studentId,
-            class_id: classId,
-            delivery_details: delivery_details ? JSON.stringify(delivery_details) : null,
-            selected_logo_id: logoId,
-            process_status: newProcessStatus,
-            hold_deadline: holdDeadline,
-            total_amount: currentTotal,
-            status: 0,
-            version: activeOrder ? activeOrder.version + 1 : 1
-        };
+        const deliveryDetailsJson = delivery_details ? JSON.stringify(delivery_details) : null;
 
         let finalOrderId;
         let changesSummary = [];
@@ -286,22 +207,58 @@ export const placeOrder = async (req, res) => {
             status: 0
         }));
 
+        // These are only known once the transaction below has resolved exactly
+        // which garments are genuinely new (see the fresh re-read inside it).
+        let currentTotal, newBalanceDue, prevAmountPaid, newOnlyGarments = [], productPriceBreakdown, newProcessStatus, orderVersion;
+
         // ── Transaction ───────────────────────────────────────────────────────
+        // Pricing and the "which garments are new" decision must be computed
+        // from data read INSIDE this transaction, immediately before the write.
+        // Computing them earlier (outside the transaction) and trusting that
+        // snapshot here would let two near-simultaneous requests both see the
+        // same stale order_items list and both insert the same product_type —
+        // e.g. two clicks of "Confirm & Pay" during a slow network response —
+        // resulting in duplicate garments and an inflated total_amount.
         await prisma.$transaction(async (tx) => {
             if (activeOrder) {
-                if (previousState.selected_logo_id !== orderData.selected_logo_id) changesSummary.push("Logo selection");
-                if (previousState.delivery_details !== orderData.delivery_details) changesSummary.push("Delivery details");
+                const freshExistingItems = await tx.orderItem.findMany({ where: { order_id: activeOrder.id } });
+
+                let pricingGarments = garments || [];
+                newOnlyGarments = garments || [];
+                if (isEditAfterPayment) {
+                    const existingTypes = new Set(freshExistingItems.map(i => i.product_type));
+                    newOnlyGarments = (garments || []).filter(item => !existingTypes.has(item.product_type || item.type));
+                    pricingGarments = [...freshExistingItems, ...newOnlyGarments];
+                }
+
+                productPriceBreakdown = [];
+                let subtotalGarments = 0;
+                pricingGarments.forEach(item => {
+                    const type = item.product_type || item.type;
+                    const price = getPriceForType(type);
+                    subtotalGarments += price;
+                    productPriceBreakdown.push({ product_type: type, price });
+                });
+
+                currentTotal = Math.round((subtotalGarments + handlingFee + shippingFee) * 100) / 100;
+                prevAmountPaid = isEditAfterPayment ? parseFloat(activeOrder.amount_paid || 0) : 0;
+                newBalanceDue = Math.max(0, Math.round((currentTotal - prevAmountPaid) * 100) / 100);
+                newProcessStatus = isEditAfterPayment ? (newBalanceDue > 0 ? 'partial_paid' : 'paid') : 'on_hold';
+                orderVersion = activeOrder.version + 1;
+
+                if (previousState.selected_logo_id !== logoId) changesSummary.push("Logo selection");
+                if (previousState.delivery_details !== deliveryDetailsJson) changesSummary.push("Delivery details");
                 changesSummary.push("Design/Garment updates");
                 if (isEditAfterPayment) changesSummary.push(`Edit after payment (was ${activeOrder.process_status})`);
 
                 await tx.order.update({
                     where: { id: activeOrder.id },
                     data: {
-                        delivery_details: orderData.delivery_details,
-                        selected_logo_id: orderData.selected_logo_id,
-                        process_status: orderData.process_status,
-                        total_amount: orderData.total_amount,
-                        version: orderData.version,
+                        delivery_details: deliveryDetailsJson,
+                        selected_logo_id: logoId,
+                        process_status: newProcessStatus,
+                        total_amount: currentTotal,
+                        version: orderVersion,
                         payment_status: isEditAfterPayment
                             ? (newBalanceDue > 0 ? 'partial' : 'paid')
                             : previousState.payment_status,
@@ -312,8 +269,9 @@ export const placeOrder = async (req, res) => {
 
                 if (isEditAfterPayment) {
                     // Already-paid items must never be touched — only genuinely new
-                    // product types get inserted, so an existing garment can't be
-                    // duplicated or re-billed just because the full list was resent.
+                    // product types (re-verified above, inside this transaction)
+                    // get inserted, so an existing garment can't be duplicated or
+                    // re-billed just because the full list was resent.
                     if (newOnlyGarments.length > 0) {
                         await tx.orderItem.createMany({ data: buildOrderItems(newOnlyGarments, finalOrderId) });
                     }
@@ -326,15 +284,29 @@ export const placeOrder = async (req, res) => {
                 }
 
             } else {
+                productPriceBreakdown = [];
+                let subtotalGarments = 0;
+                (garments || []).forEach(item => {
+                    const type = item.product_type || item.type;
+                    const price = getPriceForType(type);
+                    subtotalGarments += price;
+                    productPriceBreakdown.push({ product_type: type, price });
+                });
+                currentTotal = Math.round((subtotalGarments + handlingFee + shippingFee) * 100) / 100;
+                prevAmountPaid = 0;
+                newBalanceDue = currentTotal;
+                newProcessStatus = 'on_hold';
+                orderVersion = 1;
+
                 const newOrder = await tx.order.create({
                     data: {
-                        student_id: orderData.student_id,
-                        class_id: orderData.class_id,
-                        delivery_details: orderData.delivery_details,
-                        selected_logo_id: orderData.selected_logo_id,
+                        student_id: studentId,
+                        class_id: classId,
+                        delivery_details: deliveryDetailsJson,
+                        selected_logo_id: logoId,
                         process_status: 'on_hold',
-                        hold_deadline: orderData.hold_deadline,
-                        total_amount: orderData.total_amount,
+                        hold_deadline: holdDeadline,
+                        total_amount: currentTotal,
                         amount_paid: 0,
                         payment_status: 'unpaid',
                         version: 1,
@@ -349,6 +321,11 @@ export const placeOrder = async (req, res) => {
                 }
             }
         }, { timeout: 15000 });
+
+        // Products that are genuinely new (not yet paid for) when editing after payment
+        const extraProducts = isEditAfterPayment
+            ? newOnlyGarments.map(item => ({ product_type: item.product_type || item.type, price: getPriceForType(item.product_type || item.type) }))
+            : [];
 
         // ── Order history ─────────────────────────────────────────────────────
         if (previousState && finalOrderId) {
@@ -375,7 +352,7 @@ export const placeOrder = async (req, res) => {
 
         // ── Socket ────────────────────────────────────────────────────────────
         if (req.io) {
-            req.io.emit(`order_update_${studentId}`, { action: versionAction, version: orderData.version });
+            req.io.emit(`order_update_${studentId}`, { action: versionAction, version: orderVersion });
             req.io.emit('new_order_admin', { studentId, action: versionAction });
         }
 
@@ -402,10 +379,10 @@ export const placeOrder = async (req, res) => {
 
         return res.json({
             success: true,
-            message: activeOrder ? `Order updated (Version ${orderData.version})` : "Order created",
+            message: activeOrder ? `Order updated (Version ${orderVersion})` : "Order created",
             data: {
                 orderId: finalOrderId,
-                version: orderData.version,
+                version: orderVersion,
                 process_status: newProcessStatus,
                 total_amount: currentTotal,
                 amount_paid: prevAmountPaid,
@@ -500,28 +477,23 @@ export const getMyOrder = async (req, res) => {
             product_type: item.product_type,
             color: item.selectedColor,
             size: item.selectedSize,
-            price: getPriceForType(item.product_type)
+            price: getPriceForType(item.product_type),
+            status: item.status
         }));
         const productSubtotal = Math.round(productPriceBreakdown.reduce((sum, item) => sum + item.price, 0) * 100) / 100;
         const handlingFee = await calculateHandlingFeePerStudent(order.class_id);
-        const shippingFee = await getShippingCostForOrder(order.delivery_details);
+        const shippingFee = await calculateShippingFeePerStudent(order.class_id);
         const knownCharges = Math.round((productSubtotal + handlingFee + shippingFee) * 100) / 100;
         const otherCharges = Math.max(0, Math.round((totalAmount - knownCharges) * 100) / 100);
 
-        // If partial_paid: identify which products still need payment
-        // We assume amount_paid covers the first N products in order of creation
+        // Which products still need payment — item.status is the source of truth
+        // (set to 1 by applyPaymentToOrder on successful checkout), not a guess
+        // based on summing prices against amount_paid.
         let paidProducts = [];
         let unpaidProducts = [];
         if (['partial_paid', 'paid'].includes(order.process_status)) {
-            let runningPaid = 0;
-            for (const p of productPriceBreakdown) {
-                if (runningPaid + p.price <= amountPaid + 0.001) {
-                    paidProducts.push(p);
-                    runningPaid += p.price;
-                } else {
-                    unpaidProducts.push(p);
-                }
-            }
+            paidProducts = productPriceBreakdown.filter(p => p.status === 1);
+            unpaidProducts = productPriceBreakdown.filter(p => p.status !== 1);
         } else if (order.process_status === 'pending_payment') {
             // Stripe webhook not yet processed — all items are "to be confirmed"
             unpaidProducts = [...productPriceBreakdown];
