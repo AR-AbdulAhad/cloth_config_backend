@@ -186,7 +186,7 @@ export const listStudents = async (req, res) => {
             prisma.order.count({
                 where: {
                     class_id: parseInt(classId),
-                    process_status: 'completed',
+                    process_status: 'paid',
                     status: { not: 2 },
                     student: { role: 'student' }
                 }
@@ -197,7 +197,7 @@ export const listStudents = async (req, res) => {
             const latestOrder = student.orders?.[0] ?? null;
             let order_label = 'Registered';
             if (latestOrder) {
-                order_label = latestOrder.process_status === 'completed' ? 'Order Completed' : 'In Progress';
+                order_label = latestOrder.process_status === 'paid' ? 'Order Completed' : 'In Progress';
             }
             return {
                 id: student.id,
@@ -552,7 +552,7 @@ export const getStudentOverview = async (req, res) => {
             prisma.order.count({
                 where: {
                     class_id: classIdInt,
-                    process_status: 'completed',
+                    process_status: 'paid',
                     status: { not: 2 },
                     student: { role: 'student' }
                 }
@@ -563,7 +563,7 @@ export const getStudentOverview = async (req, res) => {
             const latestOrder = student.orders?.[0];
             let status = 'Registered';
             if (latestOrder) {
-                status = latestOrder.process_status === 'completed' ? 'Order Completed' : 'In Progress';
+                status = latestOrder.process_status === 'paid' ? 'Order Completed' : 'In Progress';
             }
             return {
                 id: student.id,

@@ -34,6 +34,9 @@ export const generateOrderProductionFiles = async (req, res) => {
             include: { items: { orderBy: { position: 'asc' } } }
         });
 
+        let deliveryDetails = null;
+        try { deliveryDetails = order.delivery_details ? JSON.parse(order.delivery_details) : null; } catch { deliveryDetails = null; }
+
         // Build rows — one row per order item
         const results = order.order_items.map(item => ({
             class_name: order.class.name,
@@ -44,6 +47,7 @@ export const generateOrderProductionFiles = async (req, res) => {
             size: item.selectedSize,
             design_config: item.design_config,
             logo_path: order.logo?.file_path || null,
+            delivery_details: deliveryDetails,
             name_list: nameList?.items.map(ni => ni.name).join(', ') || null
         }));
 
@@ -107,18 +111,50 @@ export const generateProductionFiles = async (req, res) => {
 
         if (orders.length === 0) return res.status(404).json({ success: false, message: "No orders found" });
 
-        const results = [];
+        // A student can legitimately have multiple orders in the same class —
+        // e.g. an initial order plus extra garments placed during the 3-day
+        // post-payment edit window. Merge them into one production record per
+        // student instead of one per order, using the most recently updated
+        // order's logo/design as the student's current choice.
+        const parseDeliveryDetails = (raw) => {
+            if (!raw) return null;
+            try { return JSON.parse(raw); } catch { return null; }
+        };
+
+        const byStudent = new Map();
         orders.forEach(order => {
-            order.order_items.forEach(item => {
-                results.push({
+            let entry = byStudent.get(order.student_id);
+            if (!entry) {
+                entry = {
+                    student: order.student,
                     class_name: order.class.name,
-                    student_name: order.student.name,
-                    student_email: order.student.email,
+                    items: [],
+                    logo_path: order.logo?.file_path || null,
+                    delivery_details: parseDeliveryDetails(order.delivery_details),
+                    latest_updated_at: order.updated_at
+                };
+                byStudent.set(order.student_id, entry);
+            } else if (order.updated_at >= entry.latest_updated_at) {
+                entry.latest_updated_at = order.updated_at;
+                entry.logo_path = order.logo?.file_path || entry.logo_path;
+                entry.delivery_details = parseDeliveryDetails(order.delivery_details) || entry.delivery_details;
+            }
+            entry.items.push(...order.order_items);
+        });
+
+        const results = [];
+        byStudent.forEach(entry => {
+            entry.items.forEach(item => {
+                results.push({
+                    class_name: entry.class_name,
+                    student_name: entry.student.name,
+                    student_email: entry.student.email,
                     product_type: item.product_type,
                     color: item.selectedColor,
                     size: item.selectedSize,
                     design_config: item.design_config,
-                    logo_path: order.logo?.file_path || null,
+                    logo_path: entry.logo_path,
+                    delivery_details: entry.delivery_details,
                     name_list: nameList?.items.map(ni => ni.name).join(', ') || null
                 });
             });

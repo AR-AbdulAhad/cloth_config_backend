@@ -1,13 +1,20 @@
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import path from 'path';
+import { toFullUrl, buildDesignText, formatAddress } from './productionReportHelpers.js';
 
-const PRIMARY = '#006d75';
-const LIGHT_BG = '#f0f9fa';
+const BLACK = '#1a1a1a';
 const GRAY = '#666666';
-const DARK = '#1a1a1a';
-const DIVIDER = '#d0e8ea';
+const LIGHT_GRAY = '#999999';
+const BORDER = '#dddddd';
+const BG = '#f7f7f7';
 
+const LOGO_IMAGE_PATH = path.join(process.cwd(), 'assets', 'studentlife-logo.png');
+
+// orderData is a flat list of one row per garment. Rows belonging to the same
+// student (possibly from several of their orders — e.g. extra garments added
+// during the post-payment edit window) are grouped into a single section here,
+// so each student appears once with all of their garments listed underneath.
 export const generatePDF = (orderData) => {
     return new Promise((resolve, reject) => {
         const doc = new PDFDocument({ margin: 50, size: 'A4' });
@@ -23,93 +30,104 @@ export const generatePDF = (orderData) => {
         doc.pipe(stream);
 
         // ── Header ──────────────────────────────────────────
-        doc.rect(0, 0, doc.page.width, 70).fill(PRIMARY);
-        doc.fillColor('#ffffff').fontSize(24).font('Helvetica-Bold')
-            .text('StudentLife', 50, 20);
-        doc.fontSize(11).font('Helvetica')
-            .text('Production Order Report', 50, 48);
-
-        // Generated date
-        doc.fontSize(9).fillColor('#cce8ea')
-            .text(`Generated: ${new Date().toLocaleString('da-DK')}`, 0, 52, { align: 'right' });
-
-        doc.moveDown(3);
-
-        // ── Summary bar ─────────────────────────────────────
-        if (orderData.length > 0) {
-            const className = orderData[0].class_name;
-            doc.rect(50, doc.y, doc.page.width - 100, 30).fill(LIGHT_BG);
-            doc.fillColor(PRIMARY).fontSize(10).font('Helvetica-Bold')
-                .text(`Class: ${className}   |   Total Orders: ${orderData.length}`, 60, doc.y - 22);
-            doc.moveDown(1.5);
+        if (fs.existsSync(LOGO_IMAGE_PATH)) {
+            doc.image(LOGO_IMAGE_PATH, 50, 45, { width: 110 });
+        } else {
+            doc.fillColor(BLACK).fontSize(22).font('Helvetica-Bold').text('StudentLife', 50, 50);
         }
 
-        // ── Orders ──────────────────────────────────────────
-        orderData.forEach((order, index) => {
-            // Check page space
-            if (doc.y > doc.page.height - 200) doc.addPage();
+        doc.fillColor(GRAY).fontSize(9).font('Helvetica')
+            .text('Production Order Report', 50, 100);
+        doc.fillColor(GRAY).fontSize(9)
+            .text(`Generated: ${new Date().toLocaleString('da-DK')}`, 0, 50, { align: 'right' });
+
+        doc.moveTo(50, 130).lineTo(doc.page.width - 50, 130).strokeColor(BORDER).lineWidth(1).stroke();
+        doc.y = 145;
+
+        // ── Group flat garment rows by student ───────────────
+        const students = [];
+        const indexByEmail = new Map();
+        orderData.forEach(row => {
+            const key = row.student_email || row.student_name;
+            let idx = indexByEmail.get(key);
+            if (idx === undefined) {
+                idx = students.length;
+                indexByEmail.set(key, idx);
+                students.push({
+                    student_name: row.student_name,
+                    student_email: row.student_email,
+                    class_name: row.class_name,
+                    logo_path: row.logo_path,
+                    name_list: row.name_list,
+                    delivery_details: row.delivery_details,
+                    items: []
+                });
+            }
+            students[idx].items.push(row);
+        });
+
+        // ── Summary bar ─────────────────────────────────────
+        if (students.length > 0) {
+            const className = students[0].class_name;
+            doc.rect(50, doc.y, doc.page.width - 100, 26).fill(BG);
+            doc.fillColor(BLACK).fontSize(10).font('Helvetica-Bold')
+                .text(`Class: ${className}    |    Total Students: ${students.length}`, 60, doc.y - 19);
+            doc.y += 16;
+        }
+
+        const col1 = 60;
+        const col2 = 310;
+        const colWidth = 225;
+
+        const drawField = (label, value, x, y) => {
+            doc.fillColor(GRAY).fontSize(8).font('Helvetica-Bold').text(label, x, y);
+            doc.fillColor(BLACK).fontSize(9).font('Helvetica')
+                .text(value || 'N/A', x, y + 11, { width: colWidth });
+        };
+
+        // ── Students ──────────────────────────────────────────
+        students.forEach((student, index) => {
+            if (doc.y > doc.page.height - 220) doc.addPage();
 
             const startY = doc.y;
 
-            // Order header band
-            doc.rect(50, startY, doc.page.width - 100, 24).fill(PRIMARY);
-            doc.fillColor('#ffffff').fontSize(11).font('Helvetica-Bold')
-                .text(`Order #${index + 1}  —  ${order.student_name}`, 60, startY + 6);
+            doc.fillColor(BLACK).fontSize(12).font('Helvetica-Bold')
+                .text(`${index + 1}. ${student.student_name}`, col1, startY);
+            doc.moveTo(50, startY + 18).lineTo(doc.page.width - 50, startY + 18)
+                .strokeColor(BORDER).lineWidth(1).stroke();
 
-            doc.moveDown(0.2);
+            const infoY = startY + 28;
+            drawField('EMAIL', student.student_email, col1, infoY);
+            drawField('CLASS', student.class_name, col2, infoY);
+            drawField('DELIVERY ADDRESS', formatAddress(student.delivery_details), col1, infoY + 32);
+            drawField('LOGO', toFullUrl(student.logo_path), col2, infoY + 32);
 
-            // Info rows
-            const infoY = doc.y + 8;
-            const col1 = 60;
-            const col2 = 300;
+            let y = infoY + 68;
+            doc.fillColor(GRAY).fontSize(8).font('Helvetica-Bold')
+                .text(`GARMENTS (${student.items.length})`, col1, y);
+            doc.y = y + 14;
 
-            const drawRow = (label, value, x, y) => {
-                doc.fillColor(GRAY).fontSize(8).font('Helvetica-Bold').text(label, x, y);
-                doc.fillColor(DARK).fontSize(9).font('Helvetica').text(value || 'N/A', x, y + 11);
-            };
+            student.items.forEach((item, i) => {
+                if (doc.y > doc.page.height - 100) doc.addPage();
 
-            drawRow('EMAIL', order.student_email, col1, infoY);
-            drawRow('CLASS', order.class_name, col2, infoY);
-            drawRow('PRODUCT', order.product_type, col1, infoY + 30);
-            drawRow('COLOR', order.color, col2, infoY + 30);
-            drawRow('SIZE', order.size, col1, infoY + 60);
-            drawRow('LOGO', order.logo_path ? path.basename(order.logo_path) : 'None', col2, infoY + 60);
-            drawRow('NAME LIST', order.name_list || 'N/A', col1, infoY + 90);
+                doc.fillColor(BLACK).fontSize(9).font('Helvetica-Bold')
+                    .text(`${i + 1}. ${item.product_type}`, col1, doc.y, { continued: true })
+                    .font('Helvetica')
+                    .text(`   Color: ${item.color || 'N/A'}   Size: ${item.size || 'N/A'}`);
 
-            // Design config — only non-empty fields
-            const config = order.design_config || {};
-            const designLines = [];
-            const labelMap = {
-                rightChestText: 'Right Chest Text', leftChestText: 'Left Chest Text',
-                rightSleeveText: 'Right Sleeve Text', leftSleeveText: 'Left Sleeve Text',
-                rightChestFlag: 'Right Chest Flag', leftChestFlag: 'Left Chest Flag',
-            };
-            Object.entries(labelMap).forEach(([key, label]) => {
-                if (config[key]) designLines.push(`${label}: ${config[key]}`);
+                doc.fillColor(GRAY).fontSize(8).font('Helvetica')
+                    .text(buildDesignText(item.design_config), col1 + 12, doc.y, { width: doc.page.width - col1 - 12 - 50 });
+
+                doc.moveDown(0.4);
             });
-            if (config.backDesign?.src) {
-                designLines.push(`Back Design: ${path.basename(config.backDesign.src)}`);
-            }
 
-            const designText = designLines.length > 0 ? designLines.join('  |  ') : 'No custom design config';
-            drawRow('DESIGN CONFIG', designText, col1, infoY + 120);
-
-            doc.moveDown(0.5);
-            const afterY = infoY + 155;
-
-            // Bottom divider
-            doc.moveTo(50, afterY).lineTo(doc.page.width - 50, afterY)
-                .strokeColor(DIVIDER).lineWidth(1).stroke();
-
-            doc.y = afterY + 10;
+            doc.moveDown(0.8);
         });
 
         // ── Footer ──────────────────────────────────────────
-        const footerY = doc.page.height - 40;
-        doc.rect(0, footerY, doc.page.width, 40).fill(PRIMARY);
-        doc.fillColor('#ffffff').fontSize(8).font('Helvetica')
+        doc.fillColor(LIGHT_GRAY).fontSize(8).font('Helvetica')
             .text('StudentLife – studentlife.dk  |  Confidential – For Printer Use Only',
-                50, footerY + 14, { align: 'center' });
+                50, doc.page.height - 40, { align: 'center', width: doc.page.width - 100 });
 
         doc.end();
         stream.on('finish', () => resolve(`uploads/production_files/${fileName}`));
