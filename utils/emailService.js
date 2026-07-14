@@ -9,7 +9,16 @@ const transporter = nodemailer.createTransport({
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS
     },
-    tls: { rejectUnauthorized: false }
+    tls: { rejectUnauthorized: false },
+    // Reuse a small pool of connections instead of opening a new SMTP
+    // connection per email — bulk sends (e.g. "Order Shipped" to a whole
+    // class) were opening enough simultaneous connections that simply.com
+    // started rejecting them with "too many connections from <ip>".
+    pool: true,
+    maxConnections: 3,
+    maxMessages: 100,
+    rateDelta: 1000,
+    rateLimit: 5
 });
 
 export const sendEmail = async (to, subject, html, fromAddress = null) => {
