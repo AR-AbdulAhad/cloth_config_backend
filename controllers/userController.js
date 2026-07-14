@@ -259,10 +259,12 @@ export const removeClassRep = async (req, res) => {
                 // Delete all back designs for this class
                 await tx.backDesign.deleteMany({ where: { class_id: rep.class_id } });
 
-                // Reset class: unset active back_design_id and country_id
+                // Reset class: unset active back_design_id/country_id and clear the
+                // delivery address this rep entered — it shouldn't carry over to
+                // whoever becomes the class's next representative
                 await tx.classes.update({
                     where: { id: rep.class_id },
-                    data:  { back_design_id: null, country_id: null }
+                    data:  { back_design_id: null, country_id: null, delivery_details: null }
                 });
             }
 

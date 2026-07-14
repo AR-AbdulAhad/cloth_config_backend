@@ -69,6 +69,15 @@ app.use("/uploads", (req, res, next) => {
     next();
 }, express.static(path.join(process.cwd(), "uploads")));
 
+// Serve static brand assets (e.g. email/PDF logo) directly from the API —
+// bypasses the frontend host's CDN image optimization, which was silently
+// re-encoding clothLogo.png as WebP and breaking transparency in emails.
+app.use("/assets", (req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET");
+    next();
+}, express.static(path.join(process.cwd(), "assets")));
+
 // Intermediate Middleware to inject io 
 app.use((req, res, next) => {
     req.io = io;

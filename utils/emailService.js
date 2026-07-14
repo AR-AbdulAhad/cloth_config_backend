@@ -279,7 +279,7 @@ export const sendLogoUploadNotificationEmail = async ({
     const adminHtml = `
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:20px;">
         <div style="text-align:center; padding-bottom:16px;">
-            <img src="https://cloth.studentlife.dk/clothLogo.png" style="max-width:200px;" />
+            <img src="https://clothapi.studentlife.dk/assets/studentlife-logo.png" style="max-width:200px;" />
         </div>
 
         <h2 style="color:#e67e22;">Ny logo upload-notifikation</h2>
@@ -301,7 +301,7 @@ export const sendLogoUploadNotificationEmail = async ({
     const uploaderHtml = `
 <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:20px;">
     <div style="text-align:center; padding-bottom:16px;">
-        <img src="https://cloth.studentlife.dk/clothLogo.png" style="max-width:200px;" />
+        <img src="https://clothapi.studentlife.dk/assets/studentlife-logo.png" style="max-width:200px;" />
     </div>
 
     <h2 style="color:#2ecc71;">Logo upload gennemført 🎉</h2>
@@ -341,7 +341,7 @@ export const sendBackDesignUploadNotificationEmail = async ({ recipientEmail, de
     const html = `
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:20px;">
         <div style="text-align:center; padding-bottom:16px;">
-            <img src="https://cloth.studentlife.dk/clothLogo.png" style="max-width:200px;" alt="StudentLife">
+            <img src="https://clothapi.studentlife.dk/assets/studentlife-logo.png" style="max-width:200px;" alt="StudentLife">
         </div>
         <h2 style="color:#e67e22;">Nyt ryg-design upload-notifikation</h2>
 
@@ -456,7 +456,7 @@ export const sendLogoStatusEmail = async ({ email, uploaderName, logoName, statu
 <body style="font-family:Arial,sans-serif; margin:0; padding:0; background:#fff; color:#333;">
 
 <div style="text-align:center; padding:20px;">
-    <img src="https://cloth.studentlife.dk/clothLogo.png" style="max-width:200px;" alt="StudentLife">
+    <img src="https://clothapi.studentlife.dk/assets/studentlife-logo.png" style="max-width:200px;" alt="StudentLife">
 </div>
 
 <div style="max-width:700px; margin:auto; padding:20px;">
@@ -508,7 +508,7 @@ export const sendBackDesignStatusEmail = async ({ email, uploaderName, designNam
 <body style="font-family:Arial,sans-serif; margin:0; padding:0; background:#fff; color:#333;">
 
 <div style="text-align:center; padding:20px;">
-    <img src="https://cloth.studentlife.dk/clothLogo.png" style="max-width:200px;" alt="StudentLife">
+    <img src="https://clothapi.studentlife.dk/assets/studentlife-logo.png" style="max-width:200px;" alt="StudentLife">
 </div>
 
 <div style="max-width:700px; margin:auto; padding:20px;">

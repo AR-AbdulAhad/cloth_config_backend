@@ -47,7 +47,7 @@ export const sendInquiry = async (req, res) => {
 <body style="font-family:Arial; margin:0; padding:0; background:#fff; color:#333;">
 
 <div style="text-align:center; padding:20px;">
-    <img src="https://cloth.studentlife.dk/clothLogo.png" style="max-width:200px;">
+    <img src="https://clothapi.studentlife.dk/assets/studentlife-logo.png" style="max-width:200px;">
 </div>
 
 <div style="max-width:700px; margin:auto; padding:20px;">
@@ -88,7 +88,7 @@ export const sendInquiry = async (req, res) => {
 <body style="font-family:Arial; margin:0; padding:0; background:#fff; color:#333;">
 
 <div style="text-align:center; padding:20px;">
-    <img src="https://cloth.studentlife.dk/clothLogo.png" style="max-width:200px;">
+    <img src="https://clothapi.studentlife.dk/assets/studentlife-logo.png" style="max-width:200px;">
 </div>
 
 <div style="max-width:700px; margin:auto; padding:20px;">

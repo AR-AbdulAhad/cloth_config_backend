@@ -270,12 +270,64 @@ export const assignClassRep = async (req, res) => {
 
 export const removeClass = async (req, res) => {
     try {
-        const { id } = req.params;
-        await prisma.classes.update({
-            where: { id: parseInt(id) },
-            data: { status: 2 }
+        const classId = parseInt(req.params.id);
+
+        const targetClass = await prisma.classes.findUnique({
+            where: { id: classId },
+            include: { users: { select: { id: true } }, orders: { select: { id: true } } }
         });
-        res.json({ success: true, message: "Class deleted" });
+
+        if (!targetClass) return res.status(404).json({ success: false, message: "Class not found" });
+
+        const userIds = targetClass.users.map(u => u.id);
+        const orderIds = targetClass.orders.map(o => o.id);
+
+        // ── Full cleanup in a transaction ─────────────────────────────────────
+        await prisma.$transaction(async (tx) => {
+            // 1. Nullify changed_by on any order_history rows tied to these users
+            // (no FK relation to User, so this just avoids stale references)
+            if (userIds.length > 0) {
+                await tx.orderHistory.updateMany({
+                    where: { changed_by: { in: userIds } },
+                    data: { changed_by: null }
+                });
+            }
+
+            // 2. Delete order-related data for this class
+            if (orderIds.length > 0) {
+                await tx.orderHistory.deleteMany({ where: { order_id: { in: orderIds } } });
+                await tx.orderItem.deleteMany({ where: { order_id: { in: orderIds } } });
+                await tx.order.deleteMany({ where: { class_id: classId } });
+            }
+
+            // 3. Delete logos uploaded by any student/rep in this class
+            if (userIds.length > 0) {
+                await tx.logo.deleteMany({ where: { uploaded_by: { in: userIds } } });
+            }
+
+            // 4. Delete back designs belonging to this class
+            await tx.backDesign.deleteMany({ where: { class_id: classId } });
+
+            // 5. Delete the name list and its items
+            const nameList = await tx.nameList.findUnique({ where: { class_id: classId } });
+            if (nameList) {
+                await tx.nameListItem.deleteMany({ where: { name_list_id: nameList.id } });
+                await tx.nameList.delete({ where: { id: nameList.id } });
+            }
+
+            // 6. Delete production packages generated for this class
+            await tx.productionPackage.deleteMany({ where: { class_id: classId } });
+
+            // 7. Hard-delete all students and the class representative
+            if (userIds.length > 0) {
+                await tx.user.deleteMany({ where: { class_id: classId } });
+            }
+
+            // 8. Finally delete the class itself
+            await tx.classes.delete({ where: { id: classId } });
+        });
+
+        res.json({ success: true, message: "Class and all associated data deleted." });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }
