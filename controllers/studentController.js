@@ -361,7 +361,7 @@ export const placeOrder = async (req, res) => {
             try {
                 const student = await prisma.user.findUnique({
                     where: { id: studentId },
-                    select: { name: true, email: true, class: { select: { change_deadline: true, school: { select: { education_type: true } } } } }
+                    select: { name: true, email: true, class: { select: { change_deadline: true, education_program: { select: { name: true } } } } }
                 });
                 const savedItems = await prisma.orderItem.findMany({ where: { order_id: finalOrderId } });
                 await sendOrderConfirmationEmail({
@@ -370,7 +370,7 @@ export const placeOrder = async (req, res) => {
                     orderId: finalOrderId,
                     garments: savedItems,
                     changeDeadline: student.class?.change_deadline,
-                    educationType: student.class?.school?.education_type
+                    educationType: student.class?.education_program?.name
                 });
             } catch (emailErr) {
                 console.error("Order confirmation email failed:", emailErr.message);

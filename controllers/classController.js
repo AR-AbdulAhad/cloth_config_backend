@@ -153,7 +153,7 @@ export const lockClass = async (req, res) => {
                         select: {
                             education_program: {
                                 select: {
-                                    education_type: true
+                                    name: true
                                 }
                             }
                         }
@@ -361,7 +361,7 @@ export const updateClassProcessStatus = async (req, res) => {
                             select: {
                                 education_program: {
                                     select: {
-                                        education_type: true
+                                        name: true
                                     }
                                 }
                             }
@@ -377,7 +377,7 @@ export const updateClassProcessStatus = async (req, res) => {
                             orderId: order.id,
                             status: process_status,
                             trackingCode: trackingCode || null,
-                            educationType: order.class?.education_program?.education_type
+                            educationType: order.class?.education_program?.name
                         })
                     )
                 );

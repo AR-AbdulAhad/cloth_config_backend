@@ -279,7 +279,7 @@ export const sendFollowUpToClass = async (req, res) => {
                 sendFollowUpEmail({
                     email: student.email,
                     studentName: student.name,
-                    educationType: student.class?.school?.education_type
+                    educationType: student.class?.school?.name
                 })
             )
         );
