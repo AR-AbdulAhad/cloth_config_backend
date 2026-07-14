@@ -197,7 +197,7 @@ export const sendDeadlineReminder = async (req, res) => {
                 change_deadline: true,
                 education_program: {
                     select: {
-                        education_type: true
+                        name: true
                     }
                 }
             }
@@ -223,7 +223,7 @@ export const sendDeadlineReminder = async (req, res) => {
                     studentName: order.student.name,
                     orderId: order.id,
                     changeDeadline: classData.change_deadline,
-                    educationType: classData.education_program?.education_type
+                    educationType: classData.education_program?.name
                 })
             )
         );
