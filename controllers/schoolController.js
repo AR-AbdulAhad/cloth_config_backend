@@ -3,14 +3,18 @@ import { handlePrismaError } from "../utils/errorHandler.js";
 
 export const addSchool = async (req, res) => {
     try {
-        const { name, educationProgramIds = [] } = req.body;
+        const {
+            name,
+            education_program_ids = [],
+            status = 0,
+        } = req.body;
 
         const school = await prisma.school.create({
             data: {
                 name,
-                status: 0,
+                status,
                 educationPrograms: {
-                    connect: educationProgramIds.map(id => ({
+                    connect: education_program_ids.map(id => ({
                         id: Number(id),
                     })),
                 },
@@ -19,9 +23,17 @@ export const addSchool = async (req, res) => {
                 educationPrograms: true,
             },
         });
-        res.status(201).json({ success: true, message: "School created", data: school });
+
+        res.status(201).json({
+            success: true,
+            message: "School created",
+            data: school,
+        });
     } catch (err) {
-        res.status(500).json({ success: false, error: err.message });
+        res.status(500).json({
+            success: false,
+            error: err.message,
+        });
     }
 };
 
