@@ -41,9 +41,16 @@ export const calculateHandlingFeePerStudent = async (classId) => {
 /**
  * Calculate shipping fee per student for a class.
  *
- * The class rep sets one total shipping price for the whole class
- * (classes.delivery_details.shippingPrice). Split evenly across
- * expected_students, same as the handling fee.
+ * The class rep still sets one total shipping price for the whole class
+ * (classes.delivery_details.shippingPrice) — that stays the base amount.
+ * Only the class-size threshold is centrally configured (Setting
+ * delivery_fee_threshold):
+ * - expected_students <= threshold: totalFee = shippingPrice (unchanged)
+ * - expected_students > threshold:  totalFee = shippingPrice * 2
+ * - Per student fee = totalFee / expected_students
+ *
+ * Recalculates on every call, so changing expected_students automatically
+ * changes the price on the next order total calculation.
  */
 export const calculateShippingFeePerStudent = async (classId) => {
     if (!classId) return 0;
@@ -64,13 +71,19 @@ export const calculateShippingFeePerStudent = async (classId) => {
         return 0;
     }
 
-    const totalShippingPrice = parseFloat(delivery?.shippingPrice || 0);
-    if (!totalShippingPrice) return 0;
+    const shippingPrice = parseFloat(delivery?.shippingPrice || 0);
+    if (!shippingPrice) return 0;
 
     const expectedStudents = parseInt(classInfo.expected_students || 0);
     if (!expectedStudents || expectedStudents <= 0) return 0;
 
-    return Math.round((totalShippingPrice / expectedStudents) * 100) / 100;
+    const thresholdSetting = await prisma.setting.findUnique({ where: { key: 'delivery_fee_threshold' } });
+    const threshold = parseInt(thresholdSetting?.value || 20);
+
+    const totalFee = expectedStudents > threshold ? shippingPrice * 2 : shippingPrice;
+    const perStudent = totalFee / expectedStudents;
+
+    return Math.round(perStudent * 100) / 100;
 };
 
 /**

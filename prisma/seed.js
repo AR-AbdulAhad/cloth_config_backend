@@ -74,6 +74,7 @@ async function main() {
     { key: 'handling_fee_enabled', value: 'true', description: 'Enable or disable handling fee' },
     { key: 'handling_fee_threshold', value: '20', description: 'Max items covered by base handling fee' },
     { key: 'handling_fee_extra', value: '250', description: 'Extra handling fee when items exceed threshold (DKK)' },
+    { key: 'delivery_fee_threshold', value: '20', description: 'Student count above which the class rep\'s shippingPrice doubles' },
     { key: 'vat_percentage', value: '25', description: 'VAT percentage applied to orders' },
     { key: 'order_edit_days', value: '3', description: 'Number of business days students can edit order' },
     { key: 'price_T-SHIRT', value: '200', description: 'Price for T-Shirt (DKK)' },

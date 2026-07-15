@@ -289,7 +289,7 @@ export const sendClassRepWelcomeEmail = async (email, joinLink) => {
             <td style="padding:10px 0;border-bottom:1px solid #eee;">
                 <strong>Generér tilmeldingslink til dine elever</strong><br/>
                 Under "Mine Klasser" kan du generere et unikt tilmeldingslink, som du deler med eleverne i din klasse.
-                Eleverne bruger linket til selv at tilmelde sig med navn, e-mail og fødselsår.
+                Eleverne bruger linket til selv at tilmelde sig med navn, e-mail.
             </td>
         </tr>
         <tr>
@@ -322,14 +322,6 @@ export const sendClassRepWelcomeEmail = async (email, joinLink) => {
                 <strong>Angiv forventet antal elever &amp; leveringsoplysninger</strong><br/>
                 Under klasseoplysninger kan du angive, hvor mange elever der forventes at bestille, samt hvortil
                 klassens ordre skal leveres.
-            </td>
-        </tr>
-        <tr>
-            <td style="padding:10px 0;vertical-align:top;">6️⃣</td>
-            <td style="padding:10px 0;">
-                <strong>Administrér navneliste</strong><br/>
-                Du kan oprette og redigere klassens navneliste (til tryk på tøjet) samt vælge skrifttype, indtil
-                listen markeres som klar.
             </td>
         </tr>
     </table>

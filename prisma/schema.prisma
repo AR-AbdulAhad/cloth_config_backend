@@ -98,8 +98,9 @@ model School {
 
   classes Classes[]
   users   User[]
-  logos   Logo[]  
+  logos   Logo[]
   educationPrograms EducationProgram[]
+  registration_tokens RegistrationToken[]
 
   @@map("schools")
 }
@@ -142,6 +143,7 @@ model Classes {
   name_lists          NameList?
   orders             Order[]
   production_package ProductionPackage[]
+  registration_tokens RegistrationToken[]
 
   @@map("classes")
 }
@@ -169,6 +171,8 @@ model User {
   education_program EducationProgram?  @relation(fields: [education_program_id], references: [id], onDelete: SetNull)
   logos  Logo[]
   orders Order[]
+  created_registration_tokens RegistrationToken[] @relation("TokenCreator")
+  redeemed_registration_tokens RegistrationToken[] @relation("TokenRedeemer")
 
   @@map("users")
 }
@@ -328,6 +332,32 @@ model ProductionPackage {
   class Classes @relation(fields: [class_id], references: [id], onDelete: Cascade)
 
   @@map("production_packages")
+}
+
+enum RegistrationTokenStatus {
+  unused
+  used
+}
+
+model RegistrationToken {
+  id          Int                     @id @default(autoincrement())
+  token       String                  @unique @db.VarChar(64)
+  school_id   Int
+  class_id    Int
+  status      RegistrationTokenStatus @default(unused)
+  created_by  Int
+  used_by     Int?
+  expires_at  DateTime
+  used_at     DateTime?
+  created_at  DateTime                @default(now())
+
+  school  School   @relation(fields: [school_id], references: [id], onDelete: Cascade)
+  class   Classes  @relation(fields: [class_id], references: [id], onDelete: Cascade)
+  creator User     @relation("TokenCreator", fields: [created_by], references: [id], onDelete: Cascade)
+  usedByUser User? @relation("TokenRedeemer", fields: [used_by], references: [id], onDelete: SetNull)
+
+  @@index([class_id, status, expires_at])
+  @@map("registration_tokens")
 }
 
 model Setting {

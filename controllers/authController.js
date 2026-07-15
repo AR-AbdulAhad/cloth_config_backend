@@ -105,12 +105,14 @@ export const decodeRegistrationToken = async (req, res) => {
             return res.status(400).json({ success: false, message: "Token is required" });
         }
 
-        const decoded = Buffer.from(token, 'base64').toString('utf-8');
-        const data = JSON.parse(decoded);
+        const record = await prisma.registrationToken.findUnique({ where: { token } });
+        if (!record || record.status !== 'unused' || record.expires_at < new Date()) {
+            return res.status(400).json({ success: false, message: "This registration link is invalid or has expired." });
+        }
 
         res.json({
             success: true,
-            data
+            data: { school_id: record.school_id, class_id: record.class_id, expires_at: record.expires_at }
         });
     } catch (err) {
         res.status(400).json({
@@ -121,18 +123,30 @@ export const decodeRegistrationToken = async (req, res) => {
     }
 };
 
-// Student Self-Registration
+// Student Self-Registration — requires a single-use registration token
+// issued by the class rep (see userController.generateRegistrationLink).
+// school_id/class_id come from the token, not the request body, so a
+// student can't register into a class they weren't invited to.
 export const register = async (req, res) => {
     try {
-        const { name, email, password, school_id, class_id, year_of_birth, consent_marketing = false } = req.body;
+        const { name, email, password, token, year_of_birth, consent_marketing = false } = req.body;
 
         // Validation
-        if (!name || !email || !password || !school_id || !class_id) {
+        if (!name || !email || !password || !token) {
             return res.status(400).json({
                 success: false,
-                message: "Name, email, password, school_id, and class_id are required"
+                message: "Name, email, password, and token are required"
             });
         }
+
+        const tokenRecord = await prisma.registrationToken.findUnique({ where: { token } });
+        if (!tokenRecord || tokenRecord.status !== 'unused' || tokenRecord.expires_at < new Date()) {
+            return res.status(400).json({
+                success: false,
+                message: "This registration link is invalid or has expired. Ask your class representative for a new one."
+            });
+        }
+        const { school_id, class_id } = tokenRecord;
 
         const existingUser = await prisma.user.findUnique({ where: { email } });
         if (existingUser) {
@@ -162,20 +176,50 @@ export const register = async (req, res) => {
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Create student
-        const student = await prisma.user.create({
-            data: {
-                name,
-                email,
-                password: hashedPassword,
-                school_id: parseInt(school_id),
-                class_id: parseInt(class_id),
-                year_of_birth: year_of_birth || null,
-                role: "student",
-                consent_marketing,
-                status: 0 // Active by default
+        // Atomically burn the token and create the student — the
+        // conditional updateMany (status: 'unused') acts as the guard
+        // against two concurrent requests redeeming the same link.
+        let student;
+        try {
+            student = await prisma.$transaction(async (tx) => {
+                const burned = await tx.registrationToken.updateMany({
+                    where: { token, status: 'unused', expires_at: { gt: new Date() } },
+                    data: { status: 'used', used_at: new Date() }
+                });
+                if (burned.count === 0) {
+                    throw new Error('TOKEN_ALREADY_REDEEMED');
+                }
+
+                const newStudent = await tx.user.create({
+                    data: {
+                        name,
+                        email,
+                        password: hashedPassword,
+                        school_id,
+                        class_id,
+                        year_of_birth: year_of_birth || null,
+                        role: "student",
+                        consent_marketing,
+                        status: 0 // Active by default
+                    }
+                });
+
+                await tx.registrationToken.update({
+                    where: { token },
+                    data: { used_by: newStudent.id }
+                });
+
+                return newStudent;
+            });
+        } catch (txErr) {
+            if (txErr.message === 'TOKEN_ALREADY_REDEEMED') {
+                return res.status(409).json({
+                    success: false,
+                    message: "This registration link has already been used. Ask your class representative for a new one."
+                });
             }
-        });
+            throw txErr;
+        }
 
         // Trigger automated welcome email (fire-and-forget — errors logged internally)
         triggerAutomatedEmail('user_registration', {

@@ -1,8 +1,11 @@
 import prisma from "../config/prisma.js";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import { handlePrismaError } from "../utils/errorHandler.js";
 import { sendClassRepWelcomeEmail } from "../utils/emailService.js";
 import { frontendDashboardUrl } from "../utils/const.js";
+
+const REGISTRATION_TOKEN_TTL_MS = 5 * 60 * 1000; // 5 minutes — unused links expire automatically
 export const addClassRep = async (req, res) => {
     try {
         const { name, email, school_id } = req.body;
@@ -123,17 +126,64 @@ export const listStudents = async (req, res) => {
     }
 };
 
+// Generates one single-use registration link for one student.
+// - Expires 5 minutes after issue if never redeemed.
+// - Redeeming it (successful /register) burns it immediately.
+// - Capped so a class rep can never have more live/registered seats than expected_students.
 export const generateRegistrationLink = async (req, res) => {
     try {
-        const { school_id, class_id } = req.user;
+        const { school_id, class_id, id: userId } = req.user;
         if (!school_id || !class_id) return res.status(400).json({ success: false, message: "Missing school/class info" });
 
-        const payload = JSON.stringify({ school_id, class_id });
-        const encoded = Buffer.from(payload).toString('base64');
-        const baseUrl = process.env.LIVE_FRONTEND_URL;
-        const link = `${baseUrl}register?${encoded}`;
+        const classInfo = await prisma.classes.findUnique({
+            where: { id: parseInt(class_id) },
+            select: { expected_students: true }
+        });
+        const expectedStudents = parseInt(classInfo?.expected_students || 0);
+        if (!expectedStudents || expectedStudents <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Set the expected number of students for your class before generating registration links."
+            });
+        }
 
-        res.json({ success: true, data: { registrationLink: link, token: encoded } });
+        const now = new Date();
+        const [registeredCount, liveTokenCount] = await Promise.all([
+            prisma.user.count({
+                where: { class_id: parseInt(class_id), role: 'student', status: { not: 2 } }
+            }),
+            prisma.registrationToken.count({
+                where: { class_id: parseInt(class_id), status: 'unused', expires_at: { gt: now } }
+            })
+        ]);
+
+        if (registeredCount + liveTokenCount >= expectedStudents) {
+            return res.status(409).json({
+                success: false,
+                message: `You have reached the maximum of ${expectedStudents} students for this class.`
+            });
+        }
+
+        const token = crypto.randomBytes(24).toString('hex');
+        const expiresAt = new Date(now.getTime() + REGISTRATION_TOKEN_TTL_MS);
+
+        await prisma.registrationToken.create({
+            data: {
+                token,
+                school_id: parseInt(school_id),
+                class_id: parseInt(class_id),
+                created_by: parseInt(userId),
+                expires_at: expiresAt
+            }
+        });
+
+        const baseUrl = process.env.LIVE_FRONTEND_URL;
+        const registrationLink = `${baseUrl}register?token=${token}`;
+
+        res.json({
+            success: true,
+            data: { registrationLink, token, expiresAt }
+        });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }

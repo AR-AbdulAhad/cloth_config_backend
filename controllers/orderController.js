@@ -1,5 +1,4 @@
 import prisma from "../config/prisma.js";
-import { calculateOrderTotal } from "../utils/feeCalculator.js";
 
 // export const placeOrder = async (req, res) => {
 //     try {
@@ -85,58 +84,6 @@ import { calculateOrderTotal } from "../utils/feeCalculator.js";
 //         res.status(err.message === "Order is locked" ? 403 : 500).json({ success: false, error: err.message });
 //     }
 // };
-
-export const getMyOrder = async (req, res) => {
-    try {
-        const studentId = req.user.id;
-        const order = await prisma.order.findFirst({
-            where: { student_id: parseInt(studentId), status: { not: 2 } },
-            include: { order_items: { where: { status: { not: 2 } } }, logo: true }
-        });
-
-        if (order) {
-            // Calculate VAT breakdown for the order
-            const totalAmount = parseFloat(order.total_amount || 0);
-            const classId = order.class_id;
-            
-            // Get garment prices to calculate subtotal
-            const priceSettings = await prisma.setting.findMany({
-                where: { key: { startsWith: 'price_' } }
-            });
-            const PRICES = Object.fromEntries(
-                priceSettings.map(s => [s.key.replace('price_', ''), parseFloat(s.value)])
-            );
-            const DEFAULT_PRICES = { 
-                'T-SHIRT': 200, 
-                'SWEATSHIRT': 350, 
-                'HOODIE': 450, 
-                'ZIPPERHOODIE': 500, 
-                'SWEATPANTS': 300, 
-                'SHORTS': 250 
-            };
-            const getPriceForType = (type) => PRICES[type] ?? DEFAULT_PRICES[type] ?? 0;
-
-            let subtotal = 0;
-            order.order_items.forEach(item => {
-                subtotal += getPriceForType(item.product_type);
-            });
-
-            const pricingBreakdown = await calculateOrderTotal(subtotal, classId);
-
-            res.json({ 
-                success: true, 
-                data: {
-                    ...order,
-                    pricing_breakdown: pricingBreakdown
-                }
-            });
-        } else {
-            res.json({ success: true, data: null });
-        }
-    } catch (err) {
-        res.status(500).json({ success: false, error: err.message });
-    }
-};
 
 export const getAllOrders = async (req, res) => {
     try {
