@@ -243,30 +243,119 @@ export const sendFollowUpEmail = async ({ email, studentName, educationType }) =
 };
 
 export const sendClassRepWelcomeEmail = async (email, joinLink) => {
-    const html = `
-    <div style="font-family:Arial,sans-serif;padding:20px;">
-        <h2 style="color:#006d75;">Velkommen til StudentLife 🎉</h2>
+    const html = `<!DOCTYPE html>
+<html>
+<body style="font-family:Arial,sans-serif; margin:0; padding:0; background:#fff; color:#333;">
 
-        <p>Du er blevet registreret som <strong>klasse repræsentant</strong>.</p>
+<div style="text-align:center; padding:20px;">
+    <img src="https://clothapi.studentlife.dk/assets/studentlife-logo.png" style="max-width:200px;" alt="StudentLife">
+</div>
 
-        <p><strong>Email:</strong> ${email}</p>
+<div style="max-width:640px; margin:auto; padding:0 20px 20px;">
 
-        <p>Klik nedenfor for at logge ind:</p>
+    <h2 style="color:#006d75;">Velkommen som klasserepræsentant 🎉</h2>
 
-        <a href="${joinLink}" style="display:inline-block;padding:10px 20px;background:#006d75;color:#fff;text-decoration:none;border-radius:5px;">
-            Log ind nu
-        </a>
+    <p>Kære klasserepræsentant,</p>
 
-        <p style="margin-top:12px;">Eller kopiér linket: ${joinLink}</p>
+    <p>
+        Tillykke! Du er nu registreret som <strong>klasserepræsentant</strong> hos StudentLife,
+        og din konto (<strong>${email}</strong>) er klar til brug.
+    </p>
 
-        <hr/>
+    <p>
+        Som klasserepræsentant er du bindeleddet mellem din klasse og StudentLife.
+        Nedenfor kan du læse, hvordan du kommer i gang, og hvad dine opgaver i systemet er.
+    </p>
 
-        <p style="font-size:12px;color:gray;">
-            Husk at ændre din adgangskode efter første login.
+    <div style="background:#f6f8fa;border-left:4px solid #006d75;border-radius:4px;padding:16px;margin:20px 0;">
+        <p style="margin:0 0 8px;font-weight:bold;color:#006d75;">Trin 1 — Opret din adgangskode</p>
+        <p style="margin:0;font-size:14px;">
+            Klik på knappen nedenfor for at oprette din personlige adgangskode og logge ind på dit dashboard.
         </p>
-    </div>`;
+    </div>
 
-    return sendEmail(email, 'Klasse repræsentant oprettet', html);
+    <div style="text-align:center;margin:24px 0;">
+        <a href="${joinLink}" style="display:inline-block;padding:12px 28px;background:#006d75;color:#fff;text-decoration:none;border-radius:5px;font-weight:bold;">
+            Opret adgangskode &amp; log ind
+        </a>
+    </div>
+    <p style="font-size:12px;color:#888;text-align:center;">Virker knappen ikke? Kopiér dette link: <br/>${joinLink}</p>
+
+    <h3 style="color:#006d75;margin-top:32px;">Sådan bruger du dit dashboard</h3>
+
+    <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <tr>
+            <td style="padding:10px 0;border-bottom:1px solid #eee;width:28px;vertical-align:top;">1️⃣</td>
+            <td style="padding:10px 0;border-bottom:1px solid #eee;">
+                <strong>Generér tilmeldingslink til dine elever</strong><br/>
+                Under "Mine Klasser" kan du generere et unikt tilmeldingslink, som du deler med eleverne i din klasse.
+                Eleverne bruger linket til selv at tilmelde sig med navn, e-mail og fødselsår.
+            </td>
+        </tr>
+        <tr>
+            <td style="padding:10px 0;border-bottom:1px solid #eee;vertical-align:top;">2️⃣</td>
+            <td style="padding:10px 0;border-bottom:1px solid #eee;">
+                <strong>Upload skolens logo</strong><br/>
+                Under "Logo Upload" kan du uploade skolens logo, som herefter gennemgås og godkendes af vores team,
+                inden det bliver tilgængeligt i tøjkonfiguratoren.
+            </td>
+        </tr>
+        <tr>
+            <td style="padding:10px 0;border-bottom:1px solid #eee;vertical-align:top;">3️⃣</td>
+            <td style="padding:10px 0;border-bottom:1px solid #eee;">
+                <strong>Design klassens rygdesign</strong><br/>
+                I "Konfigurator til Bagsidedesign" kan du designe eller uploade klassens rygtryk, som skal godkendes,
+                før det bruges på det endelige produkt.
+            </td>
+        </tr>
+        <tr>
+            <td style="padding:10px 0;border-bottom:1px solid #eee;vertical-align:top;">4️⃣</td>
+            <td style="padding:10px 0;border-bottom:1px solid #eee;">
+                <strong>Følg klassens tilmeldinger</strong><br/>
+                Under "Studieoversigt" kan du se, hvilke elever der har tilmeldt sig, og status på deres bestilling
+                (Tilmeldt / I gang / Ordre gennemført).
+            </td>
+        </tr>
+        <tr>
+            <td style="padding:10px 0;border-bottom:1px solid #eee;vertical-align:top;">5️⃣</td>
+            <td style="padding:10px 0;border-bottom:1px solid #eee;">
+                <strong>Angiv forventet antal elever &amp; leveringsoplysninger</strong><br/>
+                Under klasseoplysninger kan du angive, hvor mange elever der forventes at bestille, samt hvortil
+                klassens ordre skal leveres.
+            </td>
+        </tr>
+        <tr>
+            <td style="padding:10px 0;vertical-align:top;">6️⃣</td>
+            <td style="padding:10px 0;">
+                <strong>Administrér navneliste</strong><br/>
+                Du kan oprette og redigere klassens navneliste (til tryk på tøjet) samt vælge skrifttype, indtil
+                listen markeres som klar.
+            </td>
+        </tr>
+    </table>
+
+    <div style="background:#fff9ec;border-left:4px solid #e67e22;border-radius:4px;padding:16px;margin:24px 0;">
+        <p style="margin:0;font-size:13px;color:#555;">
+            ⏱ Uploads af logo og rygdesign gennemgås typisk af vores team inden for <strong>2–3 hverdage</strong>.
+            Du får automatisk besked på e-mail, når de er godkendt eller afvist.
+        </p>
+    </div>
+
+    <p>Har du spørgsmål undervejs, er du altid velkommen til at kontakte os på <a href="mailto:info@studentlife.dk">info@studentlife.dk</a>.</p>
+
+    <p>Med venlig hilsen<br/>StudentLife-teamet</p>
+
+    <hr style="border:none;border-top:1px solid #eee;margin:24px 0;"/>
+
+    <p style="font-size:11px;color:#aaa;">
+        Af sikkerhedsmæssige årsager anbefaler vi, at du ændrer din adgangskode igen, når du er logget ind første gang.<br/>
+        studentlife.dk
+    </p>
+</div>
+</body>
+</html>`;
+
+    return sendEmail(email, 'Velkommen som klasserepræsentant – StudentLife', html);
 };
 
 export const sendLogoUploadNotificationEmail = async ({
