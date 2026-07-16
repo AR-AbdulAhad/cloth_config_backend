@@ -157,7 +157,7 @@ export const generateRegistrationLink = async (req, res) => {
             })
         ]);
 
-        if (registeredCount + liveTokenCount >= expectedStudents) {
+        if (registeredCount >= expectedStudents) {
             return res.status(409).json({
                 success: false,
                 message: `You have reached the maximum of ${expectedStudents} students for this class.`
@@ -277,7 +277,7 @@ export const removeClassRep = async (req, res) => {
             where: { id: repId },
             include: {
                 orders: { select: { id: true } },
-                logos:  { select: { id: true } }
+                logos: { select: { id: true } }
             }
         });
 
@@ -290,15 +290,15 @@ export const removeClassRep = async (req, res) => {
             // 1. Nullify changed_by in order_history (no FK relation to User)
             await tx.orderHistory.updateMany({
                 where: { changed_by: repId },
-                data:  { changed_by: null }
+                data: { changed_by: null }
             });
 
             // 2. Delete order-related data
             const orderIds = rep.orders.map(o => o.id);
             if (orderIds.length > 0) {
                 await tx.orderHistory.deleteMany({ where: { order_id: { in: orderIds } } });
-                await tx.orderItem.deleteMany({   where: { order_id: { in: orderIds } } });
-                await tx.order.deleteMany({       where: { student_id: repId } });
+                await tx.orderItem.deleteMany({ where: { order_id: { in: orderIds } } });
+                await tx.order.deleteMany({ where: { student_id: repId } });
             }
 
             // 3. Delete logos uploaded by this user
@@ -314,7 +314,7 @@ export const removeClassRep = async (req, res) => {
                 // whoever becomes the class's next representative
                 await tx.classes.update({
                     where: { id: rep.class_id },
-                    data:  { back_design_id: null, country_id: null, delivery_details: null }
+                    data: { back_design_id: null, country_id: null, delivery_details: null }
                 });
             }
 
