@@ -41,12 +41,19 @@ export const calculateHandlingFeePerStudent = async (classId) => {
 /**
  * Calculate shipping fee per student for a class.
  *
- * The class rep still sets one total shipping price for the whole class
- * (classes.delivery_details.shippingPrice) — that stays the base amount.
+ * The class rep picks a shipping option (regular/express) for the whole
+ * class (classes.delivery_details.shippingOption) against a country's
+ * selectedShippingRate. The base amount is derived fresh from
+ * selectedShippingRate[shippingOption + '_delivery_rate'] on every call —
+ * NOT from the flat delivery_details.shippingPrice field, which is just a
+ * snapshot taken at selection time and can go stale if the admin later
+ * changes that country's rate. Falls back to shippingPrice only if
+ * selectedShippingRate is missing (older records).
+ *
  * Only the class-size threshold is centrally configured (Setting
  * delivery_fee_threshold):
- * - expected_students <= threshold: totalFee = shippingPrice (unchanged)
- * - expected_students > threshold:  totalFee = shippingPrice * 2
+ * - expected_students <= threshold: totalFee = base rate (unchanged)
+ * - expected_students > threshold:  totalFee = base rate * 2
  * - Per student fee = totalFee / expected_students
  *
  * Recalculates on every call, so changing expected_students automatically
@@ -71,7 +78,12 @@ export const calculateShippingFeePerStudent = async (classId) => {
         return 0;
     }
 
-    const shippingPrice = parseFloat(delivery?.shippingPrice || 0);
+    const selectedRate = delivery?.selectedShippingRate;
+    const shippingOption = delivery?.shippingOption === 'express' ? 'express' : 'regular';
+
+    const shippingPrice = selectedRate && selectedRate[`${shippingOption}_delivery_rate`] != null
+        ? parseFloat(selectedRate[`${shippingOption}_delivery_rate`])
+        : 0;
     if (!shippingPrice) return 0;
 
     const expectedStudents = parseInt(classInfo.expected_students || 0);
