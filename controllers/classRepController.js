@@ -25,7 +25,7 @@ export const listClasses = async (req, res) => {
                         name: true,
                     }
                 },
-                 education_program: true,
+                education_program: true,
                 users: {
                     where: {
                         role: 'class_representative',
@@ -735,15 +735,32 @@ export const getClassDeliveryDetails = async (req, res) => {
         }
 
         let delivery = null;
+        let selectedShippingRate = null;
+
         if (targetClass.delivery_details) {
             try {
                 delivery = JSON.parse(targetClass.delivery_details);
+
+                if (delivery?.shippingRateId) {
+                    selectedShippingRate = await prisma.shipping_rates.findFirst({
+                        where: {
+                            id: Number(delivery.shippingRateId),
+                            status: 0
+                        }
+                    });
+                }
             } catch {
                 delivery = targetClass.delivery_details;
             }
         }
 
-        res.json({ success: true, data: delivery });
+        res.json({
+            success: true,
+            data: {
+                ...delivery,
+                selectedShippingRate
+            }
+        });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }
