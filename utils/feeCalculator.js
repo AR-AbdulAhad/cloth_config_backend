@@ -78,11 +78,15 @@ export const calculateShippingFeePerStudent = async (classId) => {
         return 0;
     }
 
-    const selectedRate = delivery?.selectedShippingRate;
+    // Fetch the shipping rate from the database using shippingRateId
+    const shippingRateId = delivery?.shippingRateId;
     const shippingOption = delivery?.shippingOption === 'express' ? 'express' : 'regular';
-
-    const shippingPrice = selectedRate && selectedRate[`${shippingOption}_delivery_rate`] != null
-        ? parseFloat(selectedRate[`${shippingOption}_delivery_rate`])
+    let rateRecord = null;
+    if (shippingRateId) {
+        rateRecord = await prisma.shippingRate.findUnique({ where: { id: parseInt(shippingRateId) } });
+    }
+    const shippingPrice = rateRecord && rateRecord[`${shippingOption}_delivery_rate`] != null
+        ? parseFloat(rateRecord[`${shippingOption}_delivery_rate`])
         : 0;
     if (!shippingPrice) return 0;
 
