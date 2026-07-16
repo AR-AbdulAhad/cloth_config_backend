@@ -746,41 +746,45 @@ export const getClassDeliveryDetails = async (req, res) => {
             });
         }
 
+        console.log("Raw DB Value:", targetClass.delivery_details);
+
         let delivery = null;
         let selectedShippingRate = null;
 
         if (targetClass.delivery_details) {
             try {
-                delivery = JSON.parse(targetClass.delivery_details);
+                delivery =
+                    typeof targetClass.delivery_details === "string"
+                        ? JSON.parse(targetClass.delivery_details)
+                        : targetClass.delivery_details;
 
-                // Handle double-stringified JSON
-                if (typeof delivery === "string") {
-                    delivery = JSON.parse(delivery);
-                }
+                console.log("After Parse:", delivery);
+                console.log("Type:", typeof delivery);
 
-                if (delivery?.shippingRateId) {
-                    selectedShippingRate = await prisma.shipping_rates.findFirst({
+                if (delivery && delivery.shippingRateId) {
+                    selectedShippingRate = await prisma.shipping_rates.findUnique({
                         where: {
-                            id: Number(delivery.shippingRateId),
-                            status: 0
+                            id: Number(delivery.shippingRateId)
                         }
                     });
+
+                    console.log("Selected Shipping Rate:", selectedShippingRate);
                 }
             } catch (err) {
-                console.error("Delivery Parse Error:", err);
-                delivery = null;
+                console.error("Parse Error:", err);
             }
         }
 
         return res.json({
             success: true,
             data: {
-                ...(delivery || {}),
+                ...delivery,
                 selectedShippingRate
             }
         });
 
     } catch (err) {
+        console.error(err);
         return res.status(500).json({
             success: false,
             error: err.message
