@@ -721,17 +721,29 @@ export const getMyClassStudentCount = async (req, res) => {
 export const getClassDeliveryDetails = async (req, res) => {
     try {
         const { classId } = req.params;
+
         if (req.user.class_id !== parseInt(classId)) {
-            return res.status(403).json({ success: false, message: "You can only view delivery details for your assigned class" });
+            return res.status(403).json({
+                success: false,
+                message: "You can only view delivery details for your assigned class"
+            });
         }
 
         const targetClass = await prisma.classes.findFirst({
-            where: { id: parseInt(classId), status: { not: 2 } },
-            select: { delivery_details: true }
+            where: {
+                id: parseInt(classId),
+                status: { not: 2 }
+            },
+            select: {
+                delivery_details: true
+            }
         });
 
         if (!targetClass) {
-            return res.status(404).json({ success: false, message: "Class not found" });
+            return res.status(404).json({
+                success: false,
+                message: "Class not found"
+            });
         }
 
         let delivery = null;
@@ -741,6 +753,11 @@ export const getClassDeliveryDetails = async (req, res) => {
             try {
                 delivery = JSON.parse(targetClass.delivery_details);
 
+                // Handle double-stringified JSON
+                if (typeof delivery === "string") {
+                    delivery = JSON.parse(delivery);
+                }
+
                 if (delivery?.shippingRateId) {
                     selectedShippingRate = await prisma.shipping_rates.findFirst({
                         where: {
@@ -749,20 +766,25 @@ export const getClassDeliveryDetails = async (req, res) => {
                         }
                     });
                 }
-            } catch {
-                delivery = targetClass.delivery_details;
+            } catch (err) {
+                console.error("Delivery Parse Error:", err);
+                delivery = null;
             }
         }
 
-        res.json({
+        return res.json({
             success: true,
             data: {
-                ...delivery,
+                ...(delivery || {}),
                 selectedShippingRate
             }
         });
+
     } catch (err) {
-        res.status(500).json({ success: false, error: err.message });
+        return res.status(500).json({
+            success: false,
+            error: err.message
+        });
     }
 };
 
