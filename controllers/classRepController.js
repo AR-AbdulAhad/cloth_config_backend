@@ -746,8 +746,6 @@ export const getClassDeliveryDetails = async (req, res) => {
             });
         }
 
-        console.log("Raw DB Value:", targetClass.delivery_details);
-
         let delivery = null;
         let selectedShippingRate = null;
 
@@ -758,27 +756,23 @@ export const getClassDeliveryDetails = async (req, res) => {
                         ? JSON.parse(targetClass.delivery_details)
                         : targetClass.delivery_details;
 
-                console.log("After Parse:", delivery);
-                console.log("Type:", typeof delivery);
-
-                if (delivery && delivery.shippingRateId) {
-                    selectedShippingRate = await prisma.shipping_rates.findUnique({
+                if (delivery?.shippingRateId) {
+                    selectedShippingRate = await prisma.shippingRate.findFirst({
                         where: {
-                            id: Number(delivery.shippingRateId)
+                            id: Number(delivery.shippingRateId),
+                            status: 0
                         }
                     });
-
-                    console.log("Selected Shipping Rate:", selectedShippingRate);
                 }
             } catch (err) {
-                console.error("Parse Error:", err);
+                console.error("Delivery parse error:", err);
             }
         }
 
         return res.json({
             success: true,
             data: {
-                ...delivery,
+                ...(delivery || {}),
                 selectedShippingRate
             }
         });
