@@ -343,7 +343,7 @@ export const getSidebarMenus = async (req, res) => {
                     module: 'System',
                     children: [
                         { title: 'Settings', path: '/settings', icon: 'SettingsIcon' },
-                        { title: 'Støtte', path: '/usersupport', icon: 'SupportAgentIcon' },]
+                        { title: 'Støtte', path: '/support', icon: 'SupportAgentIcon' },]
                 }
             ],
             class_representative: [
