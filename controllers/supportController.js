@@ -1,25 +1,80 @@
 import prisma from "../config/prisma.js";
 import { sendEmail, getAdminNotificationEmails } from "../utils/emailService.js";
 
-// ─── Helper: shared HTML wrapper ─────────────────────────────────────────────
+export const registerSupportSocketHandlers = (io, socket) => {
 
-const emailWrapper = (bodyHtml) => `<!DOCTYPE html>
-<html>
-<body style="font-family:Arial,sans-serif;margin:0;padding:0;background:#f9f9f9;color:#333;">
-  <div style="text-align:center;padding:24px 0;">
-    <img src="https://clothapi.studentlife.dk/assets/studentlife-logo.png"
-         alt="StudentLife" style="max-width:180px;">
-  </div>
-  <div style="max-width:680px;margin:0 auto 40px;background:#fff;
-              border-radius:8px;padding:32px;box-shadow:0 2px 8px rgba(0,0,0,.06);">
-    ${bodyHtml}
-  </div>
-</body>
-</html>`;
+    socket.on("join_support_ticket", async ({ ticketId }) => {
+        if (!ticketId) return;
+        const room = `support_ticket_${ticketId}`;
+        socket.join(room);
+    });
 
-// ─── CLASS REP: Submit a support ticket ──────────────────────────────────────
-// POST /api/class-rep/support/submit
-// Body: { subject, message }
+    socket.on("join_admin_support", () => {
+        socket.join("admin_support");
+    });
+
+    socket.on("support_send_message", async ({ ticketId, message, senderId, senderRole }) => {
+        if (!ticketId || !message?.trim() || !senderId) return;
+
+        try {
+            // Verify ticket exists first
+            const ticket = await prisma.supportTicket.findUnique({
+                where: { id: Number(ticketId) }
+            });
+            if (!ticket) {
+                socket.emit("support_error", { error: "Ticket not found." });
+                return;
+            }
+
+            const saved = await prisma.supportTicketMessage.create({
+                data: {
+                    ticket_id: Number(ticketId),
+                    sender_id: Number(senderId),
+                    message: message.trim()
+                },
+                include: {
+                    sender: { select: { id: true, name: true, role: true } }
+                }
+            });
+
+            const newStatus = senderRole === "admin" ? "replied" : "open";
+            await prisma.supportTicket.update({
+                where: { id: Number(ticketId) },
+                data: { status: newStatus }
+            });
+
+            // Auto-join the room if sender wasn't in it yet (fixes admin timing bug)
+            const room = `support_ticket_${ticketId}`;
+            socket.join(room);
+
+            io.to(room).emit("support_message", {
+                ticketId: Number(ticketId),
+                message: saved
+            });
+
+        } catch (err) {
+            console.error("[Support Socket] support_send_message error:", err.message);
+            socket.emit("support_error", { error: "Failed to send message." });
+        }
+    });
+
+    socket.on("close_ticket", async ({ ticketId }) => {
+        if (!ticketId) return;
+        try {
+            await prisma.supportTicket.update({
+                where: { id: Number(ticketId) },
+                data: { status: "closed" }
+            });
+
+            io.to(`support_ticket_${ticketId}`).emit("ticket_status_changed", {
+                ticketId: Number(ticketId),
+                status: "closed"
+            });
+        } catch (err) {
+            console.error("[Support Socket] close_ticket error:", err.message);
+        }
+    });
+};
 
 export const submitSupportTicket = async (req, res) => {
     try {
@@ -34,7 +89,6 @@ export const submitSupportTicket = async (req, res) => {
 
         const userId = req.user.id;
 
-        // Fetch the class rep's profile so we can enrich the admin email
         const classRep = await prisma.user.findUnique({
             where: { id: userId },
             select: {
@@ -49,95 +103,65 @@ export const submitSupportTicket = async (req, res) => {
             return res.status(404).json({ success: false, message: "User not found." });
         }
 
-        // Save to DB
-        const ticket = await prisma.supportTicket.create({
-            data: {
-                user_id: userId,
-                subject: subject.trim(),
-                message: message.trim()
-            }
+        const { ticket, firstMessage } = await prisma.$transaction(async (tx) => {
+            const ticket = await tx.supportTicket.create({
+                data: {
+                    user_id: userId,
+                    subject: subject.trim(),
+                    status: "open"
+                }
+            });
+
+            const firstMessage = await tx.supportTicketMessage.create({
+                data: {
+                    ticket_id: ticket.id,
+                    sender_id: userId,
+                    message: message.trim()
+                },
+                include: {
+                    sender: { select: { id: true, name: true, role: true } }
+                }
+            });
+
+            return { ticket, firstMessage };
         });
 
-        // ── Email to admin ───────────────────────────────────────────────────
+        const io = req.io;
+        if (io) {
+            io.to("admin_support").emit("new_support_ticket", {
+                ticket: {
+                    id: ticket.id,
+                    subject: ticket.subject,
+                    status: ticket.status,
+                    created_at: ticket.created_at,
+                    user: {
+                        id: userId,
+                        name: classRep.name,
+                        email: classRep.email,
+                        school: classRep.school,
+                        class: classRep.class
+                    }
+                },
+                firstMessage
+            });
+        }
+
         const adminEmails = await getAdminNotificationEmails();
-
-        const adminHtml = emailWrapper(`
-            <h2 style="margin-top:0;">Ny supporthenvendelse (#${ticket.id})</h2>
-            <p>En klasserepræsentant har sendt en supporthenvendelse via platformen.</p>
-
-            <table width="100%" style="border-collapse:collapse;">
-              <tr><td style="padding:10px 0;border-bottom:1px solid #eee;">
-                <div style="font-size:12px;text-transform:uppercase;color:#888;margin-bottom:4px;">Navn</div>
-                <div style="font-size:15px;">${classRep.name}</div>
-              </td></tr>
-              <tr><td style="padding:10px 0;border-bottom:1px solid #eee;">
-                <div style="font-size:12px;text-transform:uppercase;color:#888;margin-bottom:4px;">E-mail</div>
-                <div style="font-size:15px;">${classRep.email}</div>
-              </td></tr>
-              <tr><td style="padding:10px 0;border-bottom:1px solid #eee;">
-                <div style="font-size:12px;text-transform:uppercase;color:#888;margin-bottom:4px;">Skole</div>
-                <div style="font-size:15px;">${classRep.school?.name ?? "–"}</div>
-              </td></tr>
-              <tr><td style="padding:10px 0;border-bottom:1px solid #eee;">
-                <div style="font-size:12px;text-transform:uppercase;color:#888;margin-bottom:4px;">Klasse</div>
-                <div style="font-size:15px;">${classRep.class?.name ?? "–"}</div>
-              </td></tr>
-              <tr><td style="padding:10px 0;border-bottom:1px solid #eee;">
-                <div style="font-size:12px;text-transform:uppercase;color:#888;margin-bottom:4px;">Emne</div>
-                <div style="font-size:15px;font-weight:bold;">${subject.trim()}</div>
-              </td></tr>
-              <tr><td style="padding:10px 0;">
-                <div style="font-size:12px;text-transform:uppercase;color:#888;margin-bottom:4px;">Besked</div>
-                <div style="font-size:15px;white-space:pre-wrap;">${message.trim().replace(/\n/g, "<br>")}</div>
-              </td></tr>
-            </table>
-
-            <div style="margin-top:24px;">
-              <a href="mailto:${classRep.email}"
-                 style="background:#333;color:#fff;padding:10px 20px;text-decoration:none;
-                        border-radius:4px;display:inline-block;">
-                Svar til ${classRep.name}
-              </a>
-            </div>
-
-            <p style="margin-top:20px;font-size:13px;color:#888;">
-              Ticket ID: #${ticket.id} · Oprettet: ${new Date(ticket.created_at).toLocaleString("da-DK", { timeZone: "Europe/Copenhagen" })}
-            </p>
-        `);
-
-        await sendEmail(
+        const adminHtml = buildAdminNotifEmail(ticket, classRep, message.trim());
+        sendEmail(
             adminEmails,
             `[Support #${ticket.id}] ${subject.trim()} — ${classRep.name}`,
             adminHtml
-        );
-
-        // ── Acknowledgment email to class rep ────────────────────────────────
-        const ackHtml = emailWrapper(`
-            <h2 style="margin-top:0;">Kære ${classRep.name},</h2>
-            <p>Vi har modtaget din supporthenvendelse og vil vende tilbage til dig hurtigst muligt.</p>
-
-            <table width="100%" style="border-collapse:collapse;">
-              <tr><td style="padding:10px 0;border-bottom:1px solid #eee;">
-                <div style="font-size:12px;text-transform:uppercase;color:#888;margin-bottom:4px;">Emne</div>
-                <div style="font-size:15px;font-weight:bold;">${subject.trim()}</div>
-              </td></tr>
-              <tr><td style="padding:10px 0;">
-                <div style="font-size:12px;text-transform:uppercase;color:#888;margin-bottom:4px;">Din besked</div>
-                <div style="font-size:15px;white-space:pre-wrap;">${message.trim().replace(/\n/g, "<br>")}</div>
-              </td></tr>
-            </table>
-
-            <p style="margin-top:24px;font-size:13px;color:#888;">Ticket ID: #${ticket.id}</p>
-
-            <p style="margin-top:4px;">Med venlig hilsen,<br/><strong>StudentLife Support</strong></p>
-        `);
-
-        await sendEmail(classRep.email, `Vi har modtaget din henvendelse (#${ticket.id})`, ackHtml);
+        ).catch(() => {}); // fire-and-forget, don't block response
 
         return res.status(201).json({
             success: true,
-            message: "Support ticket submitted successfully.",
-            data: { ticket_id: ticket.id, status: ticket.status }
+            message: "Support ticket created.",
+            data: {
+                ticket_id: ticket.id,
+                status: ticket.status,
+                firstMessage
+            }
         });
 
     } catch (err) {
@@ -146,8 +170,39 @@ export const submitSupportTicket = async (req, res) => {
     }
 };
 
-// ─── CLASS REP: Get own tickets ───────────────────────────────────────────────
-// GET /api/class-rep/support/my-tickets
+export const getTicketMessages = async (req, res) => {
+    try {
+        const ticketId = Number(req.params.ticketId);
+        const userId = req.user.id;
+        const role = req.user.role;
+
+        const ticket = await prisma.supportTicket.findUnique({
+            where: { id: ticketId },
+            include: {
+                user: { select: { id: true, name: true, email: true, school: { select: { name: true } }, class: { select: { name: true } } } },
+                messages: {
+                    orderBy: { created_at: "asc" },
+                    include: {
+                        sender: { select: { id: true, name: true, role: true } }
+                    }
+                }
+            }
+        });
+
+        if (!ticket) {
+            return res.status(404).json({ success: false, message: "Ticket not found." });
+        }
+
+        if (role === "class_representative" && ticket.user_id !== userId) {
+            return res.status(403).json({ success: false, message: "Access denied." });
+        }
+
+        return res.json({ success: true, data: ticket });
+    } catch (err) {
+        console.error("[Support] getTicketMessages error:", err.message);
+        return res.status(500).json({ success: false, error: err.message });
+    }
+};
 
 export const getMyTickets = async (req, res) => {
     try {
@@ -155,11 +210,10 @@ export const getMyTickets = async (req, res) => {
             where: { user_id: req.user.id },
             orderBy: { created_at: "desc" },
             include: {
-                replies: {
-                    orderBy: { created_at: "asc" },
-                    include: {
-                        admin: { select: { id: true, name: true } }
-                    }
+                messages: {
+                    orderBy: { created_at: "desc" },
+                    take: 1, // last message preview
+                    include: { sender: { select: { id: true, name: true, role: true } } }
                 }
             }
         });
@@ -170,9 +224,6 @@ export const getMyTickets = async (req, res) => {
         return res.status(500).json({ success: false, error: err.message });
     }
 };
-
-// ─── ADMIN: List all tickets ──────────────────────────────────────────────────
-// GET /api/admin/support/tickets?status=open&page=1&limit=20
 
 export const listAllTickets = async (req, res) => {
     try {
@@ -200,11 +251,10 @@ export const listAllTickets = async (req, res) => {
                             class: { select: { name: true } }
                         }
                     },
-                    replies: {
-                        orderBy: { created_at: "asc" },
-                        include: {
-                            admin: { select: { id: true, name: true } }
-                        }
+                    messages: {
+                        orderBy: { created_at: "desc" },
+                        take: 1,
+                        include: { sender: { select: { id: true, name: true, role: true } } }
                     }
                 }
             }),
@@ -227,93 +277,6 @@ export const listAllTickets = async (req, res) => {
     }
 };
 
-// ─── ADMIN: Reply to a ticket ─────────────────────────────────────────────────
-// POST /api/admin/support/reply/:ticketId
-// Body: { message }
-
-export const replyToTicket = async (req, res) => {
-    try {
-        const ticketId = Number(req.params.ticketId);
-        const { message } = req.body;
-
-        if (!message?.trim()) {
-            return res.status(400).json({ success: false, message: "'message' is required." });
-        }
-
-        // Load ticket + submitter info
-        const ticket = await prisma.supportTicket.findUnique({
-            where: { id: ticketId },
-            include: {
-                user: { select: { id: true, name: true, email: true } }
-            }
-        });
-
-        if (!ticket) {
-            return res.status(404).json({ success: false, message: "Ticket not found." });
-        }
-
-        // Save the reply
-        const reply = await prisma.supportTicketReply.create({
-            data: {
-                ticket_id: ticketId,
-                admin_id: req.user.id,
-                message: message.trim()
-            }
-        });
-
-        // Update ticket status to "replied"
-        await prisma.supportTicket.update({
-            where: { id: ticketId },
-            data: { status: "replied" }
-        });
-
-        // ── Email to class rep ───────────────────────────────────────────────
-        const repHtml = emailWrapper(`
-            <h2 style="margin-top:0;">Svar på din supporthenvendelse (#${ticket.id})</h2>
-            <p>Vores supportteam har besvaret din henvendelse med emnet:
-               <strong>${ticket.subject}</strong></p>
-
-            <div style="background:#f4f4f4;border-left:4px solid #333;padding:16px;
-                        border-radius:4px;margin:20px 0;">
-              <div style="font-size:12px;text-transform:uppercase;color:#888;margin-bottom:8px;">
-                Svar fra StudentLife Support
-              </div>
-              <div style="font-size:15px;white-space:pre-wrap;">
-                ${message.trim().replace(/\n/g, "<br>")}
-              </div>
-            </div>
-
-            <hr style="border:none;border-top:1px solid #eee;margin:24px 0;">
-
-            <div style="font-size:13px;color:#888;">
-              <div style="margin-bottom:8px;font-weight:bold;color:#555;">Din oprindelige besked:</div>
-              <div style="white-space:pre-wrap;">${ticket.message.replace(/\n/g, "<br>")}</div>
-            </div>
-
-            <p style="margin-top:24px;font-size:13px;color:#888;">Ticket ID: #${ticket.id}</p>
-            <p>Med venlig hilsen,<br/><strong>StudentLife Support</strong></p>
-        `);
-
-        await sendEmail(
-            ticket.user.email,
-            `[Support #${ticket.id}] Svar: ${ticket.subject}`,
-            repHtml
-        );
-
-        return res.json({
-            success: true,
-            message: "Reply sent and class rep notified.",
-            data: { reply_id: reply.id, ticket_status: "replied" }
-        });
-
-    } catch (err) {
-        console.error("[Support] replyToTicket error:", err.message);
-        return res.status(500).json({ success: false, error: err.message });
-    }
-};
-
-// ─── ADMIN: Close a ticket ────────────────────────────────────────────────────
-// PATCH /api/admin/support/:ticketId/close
 
 export const closeTicket = async (req, res) => {
     try {
@@ -329,9 +292,60 @@ export const closeTicket = async (req, res) => {
             data: { status: "closed" }
         });
 
+        const io = req.io;
+        if (io) {
+            io.to(`support_ticket_${ticketId}`).emit("ticket_status_changed", {
+                ticketId,
+                status: "closed"
+            });
+        }
+
         return res.json({ success: true, message: "Ticket closed." });
     } catch (err) {
         console.error("[Support] closeTicket error:", err.message);
         return res.status(500).json({ success: false, error: err.message });
     }
 };
+
+
+const emailWrapper = (bodyHtml) => `<!DOCTYPE html>
+<html>
+<body style="font-family:Arial,sans-serif;margin:0;padding:0;background:#f9f9f9;color:#333;">
+  <div style="text-align:center;padding:24px 0;">
+    <img src="https://clothapi.studentlife.dk/assets/studentlife-logo.png"
+         alt="StudentLife" style="max-width:180px;">
+  </div>
+  <div style="max-width:680px;margin:0 auto 40px;background:#fff;
+              border-radius:8px;padding:32px;box-shadow:0 2px 8px rgba(0,0,0,.06);">
+    ${bodyHtml}
+  </div>
+</body>
+</html>`;
+
+const buildAdminNotifEmail = (ticket, classRep, message) => emailWrapper(`
+    <h2 style="margin-top:0;">Ny supporthenvendelse (#${ticket.id})</h2>
+    <p>En klasserepræsentant har åbnet en ny supportchat via platformen.</p>
+    <table width="100%" style="border-collapse:collapse;">
+      <tr><td style="padding:8px 0;border-bottom:1px solid #eee;">
+        <span style="font-size:12px;color:#888;text-transform:uppercase;">Navn</span><br>
+        <strong>${classRep.name}</strong>
+      </td></tr>
+      <tr><td style="padding:8px 0;border-bottom:1px solid #eee;">
+        <span style="font-size:12px;color:#888;text-transform:uppercase;">E-mail</span><br>
+        ${classRep.email}
+      </td></tr>
+      <tr><td style="padding:8px 0;border-bottom:1px solid #eee;">
+        <span style="font-size:12px;color:#888;text-transform:uppercase;">Skole / Klasse</span><br>
+        ${classRep.school?.name ?? "–"} / ${classRep.class?.name ?? "–"}
+      </td></tr>
+      <tr><td style="padding:8px 0;border-bottom:1px solid #eee;">
+        <span style="font-size:12px;color:#888;text-transform:uppercase;">Emne</span><br>
+        <strong>${ticket.subject}</strong>
+      </td></tr>
+      <tr><td style="padding:8px 0;">
+        <span style="font-size:12px;color:#888;text-transform:uppercase;">Besked</span><br>
+        <div style="white-space:pre-wrap;">${message.replace(/\n/g, "<br>")}</div>
+      </td></tr>
+    </table>
+    <p style="margin-top:20px;font-size:12px;color:#aaa;">Ticket ID: #${ticket.id}</p>
+`);

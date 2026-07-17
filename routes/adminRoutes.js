@@ -19,7 +19,7 @@ import { listShippingRates, getShippingRate, createShippingRate, updateShippingR
 import { getClassNameList, approveNameList, rejectNameList, getAllNameList, unlockNameList } from "../controllers/nameListControllers.js";
 import { getAllOrders, getOrderDetails, getOrderHistory, unlockOrder, lockOrder, debugOrderHistory } from "../controllers/orderController.js";
 import { addEducationProgram, listEducationPrograms, editEducationProgram, deleteEducationProgram } from "../controllers/educationProgramController.js";
-import { listAllTickets, replyToTicket, closeTicket } from "../controllers/supportController.js";
+import { listAllTickets, getTicketMessages, closeTicket } from "../controllers/supportController.js";
 
 const router = express.Router();
 const adminMiddleware = authMiddleware("admin");
@@ -180,7 +180,8 @@ router.delete("/shipping-rate/:id/delete", adminMiddleware, deleteShippingRate);
 
 // Support Tickets
 router.get("/support/tickets", adminMiddleware, listAllTickets);
-router.post("/support/reply/:ticketId", adminMiddleware, replyToTicket);
+router.get("/support/ticket/:ticketId", adminMiddleware, getTicketMessages);
+router.get("/support/ticket/:ticketId/messages", adminMiddleware, getTicketMessages); // alias
 router.patch("/support/:ticketId/close", adminMiddleware, closeTicket);
 
 export default router;

@@ -15,6 +15,7 @@ import { checkExpiredHoldOrders } from "./utils/expiryWorker.js";
 
 import { Server } from "socket.io";
 import http from "http";
+import { registerSupportSocketHandlers } from "./controllers/supportController.js";
 
 dotenv.config();
 
@@ -37,6 +38,7 @@ io.on("connection", (socket) => {
     socket.on("join", (roomId) => {
         socket.join(roomId);
     });
+    registerSupportSocketHandlers(io, socket);
 
     socket.on("disconnect", () => {
     });
