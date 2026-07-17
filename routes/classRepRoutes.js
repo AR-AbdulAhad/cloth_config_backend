@@ -11,6 +11,7 @@ import { getNameListForUser, addNameListItem, updateNameListItem, reorderNameLis
 import { getActiveFonts, setNameListFont } from "../controllers/fontController.js";
 import { getStudentDetails, deleteStudent } from "../controllers/studentController.js";
 import { listShippingRates } from "../controllers/shippingController.js";
+import { submitSupportTicket, getMyTickets } from "../controllers/supportController.js";
 
 const logoStorage = multer.diskStorage({
     destination: (_req, _file, cb) => {
@@ -117,6 +118,10 @@ router.post("/namelist/create", middleware, createNameList);
 router.delete("/namelist/item/:item_id", middleware, deleteNameListItem);
 router.get("/fonts", middleware, getActiveFonts);
 router.put("/namelist/set-font", middleware, setNameListFont);
+
+// Support Tickets
+router.post("/support/submit", middleware, submitSupportTicket);
+router.get("/support/my-tickets", middleware, getMyTickets);
 
 
 export default router;

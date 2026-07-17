@@ -173,8 +173,45 @@ model User {
   orders Order[]
   created_registration_tokens RegistrationToken[] @relation("TokenCreator")
   redeemed_registration_tokens RegistrationToken[] @relation("TokenRedeemer")
+  support_tickets      SupportTicket[]
+  support_ticket_replies SupportTicketReply[]
 
   @@map("users")
+}
+
+// ─── Support Tickets ────────────────────────────────────────────────────────
+
+enum SupportTicketStatus {
+  open
+  replied
+  closed
+}
+
+model SupportTicket {
+  id          Int                  @id @default(autoincrement())
+  user_id     Int
+  subject     String               @db.VarChar(255)
+  message     String               @db.Text
+  status      SupportTicketStatus  @default(open)
+  created_at  DateTime             @default(now())
+
+  user    User                 @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  replies SupportTicketReply[]
+
+  @@map("support_tickets")
+}
+
+model SupportTicketReply {
+  id         Int      @id @default(autoincrement())
+  ticket_id  Int
+  admin_id   Int
+  message    String   @db.Text
+  created_at DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
+  admin  User          @relation(fields: [admin_id], references: [id], onDelete: Cascade)
+
+  @@map("support_ticket_replies")
 }
 
 model Logo {

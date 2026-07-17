@@ -343,7 +343,7 @@ export const getSidebarMenus = async (req, res) => {
                     module: 'System',
                     children: [
                         { title: 'Settings', path: '/settings', icon: 'SettingsIcon' },
-                    ]
+                        { title: 'Støtte', path: '/usersupport', icon: 'SupportAgentIcon' },]
                 }
             ],
             class_representative: [
@@ -354,8 +354,10 @@ export const getSidebarMenus = async (req, res) => {
                         { title: 'Logo Upload', path: '/upload-files', icon: 'CloudUploadIcon' }, // or "Logo Upload" if you want to keep the English term
                         { title: 'Konfigurator til Bagsidedesign', path: '/back-design-configurator', icon: 'BrushIcon' },
                         { title: 'Studieoversigt', path: '/student-overview', icon: 'PeopleAltIcon' },
+                        { title: 'Støtte', path: '/usersupport', icon: 'SupportAgentIcon' },
                     ]
                 }
+
             ]
         };
 
