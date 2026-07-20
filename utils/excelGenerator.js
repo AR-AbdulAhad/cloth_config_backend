@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs';
 import path from 'path';
 import fs from 'fs';
-import { toFullUrl, buildDesignText, formatAddress } from './productionReportHelpers.js';
+import { toFullUrl, buildDesignEntries, formatAddress } from './productionReportHelpers.js';
 
 const HEADER_FILL = 'FFF0F0F0';
 const HEADER_TEXT = 'FF1A1A1A';
@@ -82,14 +82,31 @@ export const generateExcel = (orderData) => {
             { key: 'design_details', width: 55 }
         ];
 
+        // One line per design-config entry (e.g. "Right Chest Flag: Australia"),
+        // instead of a single pipe-separated string — keeps each cell readable
+        // once wrapText + a tall enough row height are applied below.
+        const formatEntryLine = (entry) => {
+            if (entry.value && entry.url) return `${entry.label}: ${entry.value} (${entry.url})`;
+            if (entry.value) return `${entry.label}: ${entry.value}`;
+            if (entry.url) return `${entry.label}: ${entry.url}`;
+            return entry.label;
+        };
+
         const students = groupByStudent(orderData);
 
         students.forEach(student => {
             const garmentsText = student.items
                 .map((item, i) => `${i + 1}. ${item.product_type} — Color: ${item.color || 'N/A'}, Size: ${item.size || 'N/A'}`)
                 .join('\n');
+
+            let designLineCount = 0;
             const designText = student.items
-                .map((item, i) => `${i + 1}. ${buildDesignText(item.design_config)}`)
+                .map((item, i) => {
+                    const entries = buildDesignEntries(item.design_config, item.logoUrlById);
+                    const lines = entries.length > 0 ? entries.map(formatEntryLine) : ['No custom design config'];
+                    designLineCount += 1 + lines.length;
+                    return [`${i + 1}. ${item.product_type}`, ...lines.map(l => `   ${l}`)].join('\n');
+                })
                 .join('\n');
 
             const row = sheet.addRow({
@@ -106,7 +123,7 @@ export const generateExcel = (orderData) => {
                 cell.alignment = { wrapText: true, vertical: 'top' };
                 cell.border = { bottom: { style: 'thin', color: { argb: BORDER_COLOR } } };
             });
-            row.height = Math.max(20, student.items.length * 15);
+            row.height = Math.max(20, designLineCount * 14);
         });
 
         const fileName = `production_orders_${Date.now()}.xlsx`;

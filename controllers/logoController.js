@@ -2,6 +2,21 @@ import prisma from "../config/prisma.js";
 import { handlePrismaError } from "../utils/errorHandler.js";
 import { sendLogoUploadNotificationEmail, getAdminNotificationEmails, sendLogoStatusEmail } from "../utils/emailService.js";
 
+// A logo id can be referenced per-placement inside an order item's design_config
+// JSON (e.g. rightChestLogoId, leftSleeveLogoId), not just via Order.selected_logo_id.
+// Counts how many such order items reference the given logo id.
+const countOrderItemsUsingLogo = async (logoId, { includeDeleted = false } = {}) => {
+    const items = await prisma.orderItem.findMany({
+        where: includeDeleted ? {} : { status: { not: 2 } },
+        select: { design_config: true }
+    });
+    return items.filter(item =>
+        Object.entries(item.design_config || {}).some(
+            ([key, value]) => key.endsWith('LogoId') && Number(value) === logoId
+        )
+    ).length;
+};
+
 export const uploadSchoolLogo = async (req, res) => {
     try {
         const userId = Number(req.user.id);
@@ -377,6 +392,14 @@ export const adminDeleteLogo = async (req, res) => {
             });
         }
 
+        const activeItemsUsingLogo = await countOrderItemsUsingLogo(parseInt(logoId));
+        if (activeItemsUsingLogo > 0) {
+            return res.status(400).json({
+                success: false,
+                message: `Cannot delete logo. It is currently used in ${activeItemsUsingLogo} active order item(s)`
+            });
+        }
+
         await prisma.logo.update({
             where: { id: parseInt(logoId) },
             data: { status: 2 }
@@ -422,6 +445,14 @@ export const adminPermanentDeleteLogo = async (req, res) => {
             return res.status(400).json({
                 success: false,
                 message: `Cannot permanently delete logo. It is referenced in ${anyOrders} order(s). Use soft delete instead.`
+            });
+        }
+
+        const anyItemsUsingLogo = await countOrderItemsUsingLogo(parseInt(logoId), { includeDeleted: true });
+        if (anyItemsUsingLogo > 0) {
+            return res.status(400).json({
+                success: false,
+                message: `Cannot permanently delete logo. It is referenced in ${anyItemsUsingLogo} order item(s). Use soft delete instead.`
             });
         }
 

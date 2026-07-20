@@ -1,13 +1,14 @@
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import path from 'path';
-import { toFullUrl, buildDesignText, formatAddress } from './productionReportHelpers.js';
+import { buildDesignEntries, formatAddress } from './productionReportHelpers.js';
 
 const BLACK = '#1a1a1a';
 const GRAY = '#666666';
 const LIGHT_GRAY = '#999999';
 const BORDER = '#dddddd';
 const BG = '#f7f7f7';
+const LINK_COLOR = '#1a56db';
 
 const LOGO_IMAGE_PATH = path.join(process.cwd(), 'assets', 'studentlife-logo.png');
 
@@ -69,10 +70,11 @@ export const generatePDF = (orderData) => {
         // ── Summary bar ─────────────────────────────────────
         if (students.length > 0) {
             const className = students[0].class_name;
-            doc.rect(50, doc.y, doc.page.width - 100, 26).fill(BG);
+            const barY = doc.y;
+            doc.rect(50, barY, doc.page.width - 100, 26).fill(BG);
             doc.fillColor(BLACK).fontSize(10).font('Helvetica-Bold')
-                .text(`Class: ${className}    |    Total Students: ${students.length}`, 60, doc.y - 19);
-            doc.y += 16;
+                .text(`Class: ${className}    |    Total Students: ${students.length}`, 60, barY + 8);
+            doc.y = barY + 26 + 14;
         }
 
         const col1 = 60;
@@ -83,6 +85,27 @@ export const generatePDF = (orderData) => {
             doc.fillColor(GRAY).fontSize(8).font('Helvetica-Bold').text(label, x, y);
             doc.fillColor(BLACK).fontSize(9).font('Helvetica')
                 .text(value || 'N/A', x, y + 11, { width: colWidth });
+        };
+
+        // Renders one design-config line ("Right Chest Flag: Australia  [View Flag]")
+        // as a chain of continued text segments so the link only covers the
+        // "[View X]" portion, not the whole line.
+        const drawDesignEntry = (entry, x, y) => {
+            doc.x = x;
+            doc.y = y;
+            doc.fillColor(GRAY).fontSize(8).font('Helvetica-Bold')
+                .text(`${entry.label}: `, x, y, { continued: true });
+
+            if (entry.value) {
+                doc.fillColor(BLACK).font('Helvetica')
+                    .text(entry.value, { continued: !!entry.url });
+                if (entry.url) doc.text('  ', { continued: true });
+            }
+
+            if (entry.url) {
+                doc.fillColor(LINK_COLOR).font('Helvetica')
+                    .text(`[${entry.linkLabel}]`, { link: entry.url, underline: true });
+            }
         };
 
         // ── Students ──────────────────────────────────────────
@@ -100,7 +123,6 @@ export const generatePDF = (orderData) => {
             drawField('EMAIL', student.student_email, col1, infoY);
             drawField('CLASS', student.class_name, col2, infoY);
             drawField('DELIVERY ADDRESS', formatAddress(student.delivery_details), col1, infoY + 32);
-            drawField('LOGO', toFullUrl(student.logo_path), col2, infoY + 32);
 
             let y = infoY + 68;
             doc.fillColor(GRAY).fontSize(8).font('Helvetica-Bold')
@@ -115,13 +137,23 @@ export const generatePDF = (orderData) => {
                     .font('Helvetica')
                     .text(`   Color: ${item.color || 'N/A'}   Size: ${item.size || 'N/A'}`);
 
-                doc.fillColor(GRAY).fontSize(8).font('Helvetica')
-                    .text(buildDesignText(item.design_config), col1 + 12, doc.y, { width: doc.page.width - col1 - 12 - 50 });
+                doc.moveDown(0.2);
 
-                doc.moveDown(0.4);
+                const designEntries = buildDesignEntries(item.design_config, item.logoUrlById);
+                if (designEntries.length === 0) {
+                    doc.fillColor(GRAY).fontSize(8).font('Helvetica-Oblique')
+                        .text('No custom design config', col1 + 12, doc.y);
+                } else {
+                    designEntries.forEach(entry => {
+                        if (doc.y > doc.page.height - 80) doc.addPage();
+                        drawDesignEntry(entry, col1 + 12, doc.y);
+                    });
+                }
+
+                doc.moveDown(0.5);
             });
 
-            doc.moveDown(0.8);
+            doc.moveDown(0.6);
         });
 
         // ── Footer ──────────────────────────────────────────

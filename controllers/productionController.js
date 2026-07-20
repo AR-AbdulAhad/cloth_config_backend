@@ -2,6 +2,7 @@ import prisma from "../config/prisma.js";
 import { generatePDF } from "../utils/pdfGenerator.js";
 import { generateExcel } from "../utils/excelGenerator.js";
 import { sendStatusEmail, sendFollowUpEmail } from "../utils/emailService.js";
+import { collectLogoIds, buildLogoUrlMap } from "../utils/productionReportHelpers.js";
 
 // ─────────────────────────────────────────────
 // Generate production files for a single order
@@ -37,6 +38,9 @@ export const generateOrderProductionFiles = async (req, res) => {
         let deliveryDetails = null;
         try { deliveryDetails = order.delivery_details ? JSON.parse(order.delivery_details) : null; } catch { deliveryDetails = null; }
 
+        // Resolve every placement's logo id (rightChestLogoId, leftSleeveLogoId, ...) to a full URL in one batch query
+        const logoUrlById = await buildLogoUrlMap(collectLogoIds(order.order_items.map(i => i.design_config)));
+
         // Build rows — one row per order item
         const results = order.order_items.map(item => ({
             class_name: order.class.name,
@@ -46,6 +50,7 @@ export const generateOrderProductionFiles = async (req, res) => {
             color: item.selectedColor,
             size: item.selectedSize,
             design_config: item.design_config,
+            logoUrlById,
             logo_path: order.logo?.file_path || null,
             delivery_details: deliveryDetails,
             name_list: nameList?.items.map(ni => ni.name).join(', ') || null
@@ -142,6 +147,11 @@ export const generateProductionFiles = async (req, res) => {
             entry.items.push(...order.order_items);
         });
 
+        // Resolve every placement's logo id across the whole class in one batch query
+        const allDesignConfigs = [];
+        byStudent.forEach(entry => entry.items.forEach(item => allDesignConfigs.push(item.design_config)));
+        const logoUrlById = await buildLogoUrlMap(collectLogoIds(allDesignConfigs));
+
         const results = [];
         byStudent.forEach(entry => {
             entry.items.forEach(item => {
@@ -153,6 +163,7 @@ export const generateProductionFiles = async (req, res) => {
                     color: item.selectedColor,
                     size: item.selectedSize,
                     design_config: item.design_config,
+                    logoUrlById,
                     logo_path: entry.logo_path,
                     delivery_details: entry.delivery_details,
                     name_list: nameList?.items.map(ni => ni.name).join(', ') || null
