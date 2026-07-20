@@ -268,10 +268,26 @@ export const placeOrder = async (req, res) => {
                 finalOrderId = activeOrder.id;
 
                 if (isEditAfterPayment) {
-                    // Already-paid items must never be touched — only genuinely new
-                    // product types (re-verified above, inside this transaction)
-                    // get inserted, so an existing garment can't be duplicated or
-                    // re-billed just because the full list was resent.
+                    // Already-paid garments must never be re-billed or duplicated —
+                    // only genuinely new product types (re-verified above, inside
+                    // this transaction) get inserted. But the student can still
+                    // restyle a garment they already paid for (new flag/logo/back
+                    // design on the same product_type) during the edit window, so
+                    // that design_config change must be saved in place, not dropped.
+                    const existingByType = new Map(freshExistingItems.map(i => [i.product_type, i]));
+                    const restyledGarments = (garments || []).filter(item => existingByType.has(item.product_type || item.type));
+                    for (const item of restyledGarments) {
+                        const existing = existingByType.get(item.product_type || item.type);
+                        await tx.orderItem.update({
+                            where: { id: existing.id },
+                            data: {
+                                selectedColor: item.selectedColor || item.color || existing.selectedColor,
+                                selectedSize: item.selectedSize || item.size || existing.selectedSize,
+                                design_config: item.design_config || item
+                            }
+                        });
+                    }
+
                     if (newOnlyGarments.length > 0) {
                         await tx.orderItem.createMany({ data: buildOrderItems(newOnlyGarments, finalOrderId) });
                     }
