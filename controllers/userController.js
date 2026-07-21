@@ -5,7 +5,11 @@ import { handlePrismaError } from "../utils/errorHandler.js";
 import { sendClassRepWelcomeEmail } from "../utils/emailService.js";
 import { frontendDashboardUrl } from "../utils/const.js";
 
-const REGISTRATION_TOKEN_TTL_MS = 5 * 60 * 1000; // 5 minutes — unused links expire automatically
+// expires_at is a required DB column, so there's no "no expiry" value to store —
+// instead this is set far enough out (100 years) that it never expires in
+// practice. A link is only ever invalidated by being redeemed (single-use burn
+// in register()), not by time, so a student always has as long as they need.
+const REGISTRATION_TOKEN_TTL_MS = 100 * 365 * 24 * 60 * 60 * 1000;
 export const addClassRep = async (req, res) => {
     try {
         const { name, email, school_id } = req.body;
@@ -127,7 +131,7 @@ export const listStudents = async (req, res) => {
 };
 
 // Generates one single-use registration link for one student.
-// - Expires 5 minutes after issue if never redeemed.
+// - Stays valid until the student actually registers with it — no time-based expiry.
 // - Redeeming it (successful /register) burns it immediately.
 // - Capped so a class rep can never have more live/registered seats than expected_students.
 export const generateRegistrationLink = async (req, res) => {

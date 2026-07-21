@@ -278,6 +278,64 @@ export const listAllTickets = async (req, res) => {
 };
 
 
+// Class rep rates their own ticket, once it's closed — one rating per ticket
+// (re-submitting just overwrites it, matching the frontend's editable stars).
+export const rateSupportTicket = async (req, res) => {
+    try {
+        const ticketId = Number(req.params.ticketId);
+        const userId = req.user.id;
+        const ratingNum = Number(req.body.rating);
+
+        if (!Number.isInteger(ratingNum) || ratingNum < 1 || ratingNum > 5) {
+            return res.status(400).json({ success: false, message: "Rating must be an integer between 1 and 5." });
+        }
+
+        const ticket = await prisma.supportTicket.findUnique({ where: { id: ticketId } });
+        if (!ticket) {
+            return res.status(404).json({ success: false, message: "Ticket not found." });
+        }
+        if (ticket.user_id !== userId) {
+            return res.status(403).json({ success: false, message: "Access denied." });
+        }
+        if (ticket.status !== "closed") {
+            return res.status(400).json({ success: false, message: "Only closed tickets can be rated." });
+        }
+
+        const updated = await prisma.supportTicket.update({
+            where: { id: ticketId },
+            data: { rating: ratingNum, rated_at: new Date() }
+        });
+
+        return res.json({ success: true, message: "Thanks for your feedback.", data: { rating: updated.rating } });
+    } catch (err) {
+        console.error("[Support] rateSupportTicket error:", err.message);
+        return res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// Admin-facing aggregate — average rating + how many tickets have been rated,
+// across all rated tickets (not just the currently filtered/paginated list).
+export const getRatingSummary = async (req, res) => {
+    try {
+        const agg = await prisma.supportTicket.aggregate({
+            where: { rating: { not: null } },
+            _avg: { rating: true },
+            _count: { rating: true }
+        });
+
+        return res.json({
+            success: true,
+            data: {
+                averageRating: agg._avg.rating !== null ? Math.round(agg._avg.rating * 10) / 10 : null,
+                ratedCount: agg._count.rating
+            }
+        });
+    } catch (err) {
+        console.error("[Support] getRatingSummary error:", err.message);
+        return res.status(500).json({ success: false, error: err.message });
+    }
+};
+
 export const closeTicket = async (req, res) => {
     try {
         const ticketId = Number(req.params.ticketId);

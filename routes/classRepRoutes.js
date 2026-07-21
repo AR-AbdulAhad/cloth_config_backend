@@ -11,7 +11,7 @@ import { getNameListForUser, addNameListItem, updateNameListItem, reorderNameLis
 import { getActiveFonts, setNameListFont } from "../controllers/fontController.js";
 import { getStudentDetails, deleteStudent } from "../controllers/studentController.js";
 import { listShippingRates } from "../controllers/shippingController.js";
-import { submitSupportTicket, getMyTickets, getTicketMessages } from "../controllers/supportController.js";
+import { submitSupportTicket, getMyTickets, getTicketMessages, rateSupportTicket } from "../controllers/supportController.js";
 
 const logoStorage = multer.diskStorage({
     destination: (_req, _file, cb) => {
@@ -124,6 +124,7 @@ router.post("/support/submit", middleware, submitSupportTicket);
 router.get("/support/my-tickets", middleware, getMyTickets);
 router.get("/support/ticket/:ticketId", middleware, getTicketMessages);
 router.get("/support/ticket/:ticketId/messages", middleware, getTicketMessages); // alias
+router.patch("/support/ticket/:ticketId/rating", middleware, rateSupportTicket);
 
 
 export default router;

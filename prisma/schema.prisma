@@ -192,6 +192,8 @@ model SupportTicket {
   user_id     Int
   subject     String               @db.VarChar(255)
   status      SupportTicketStatus  @default(open)
+  rating      Int?
+  rated_at    DateTime?
   created_at  DateTime             @default(now())
 
   user     User                  @relation(fields: [user_id], references: [id], onDelete: Cascade)
