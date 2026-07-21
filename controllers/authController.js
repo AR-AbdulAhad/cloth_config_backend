@@ -147,6 +147,22 @@ export const register = async (req, res) => {
             });
         }
         const { school_id, class_id } = tokenRecord;
+// Check class registration limit
+const classInfo = await prisma.classes.findUnique({
+  where: { id: class_id },
+  select: { expected_students: true }
+});
+if (classInfo?.expected_students) {
+  const registeredCount = await prisma.user.count({
+    where: { class_id: class_id, role: 'student', status: { not: 2 } }
+  });
+  if (registeredCount >= classInfo.expected_students) {
+    return res.status(400).json({
+      success: false,
+      message: "Class registration limit reached. Contact your class representative."
+    });
+  }
+}
 
         const existingUser = await prisma.user.findUnique({ where: { email } });
         if (existingUser) {

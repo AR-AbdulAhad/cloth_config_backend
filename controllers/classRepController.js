@@ -615,10 +615,20 @@ export const setMyClassExpectedStudentCount = async (req, res) => {
 
         // Check if the expected_students field exists in the database
         try {
-            const updatedClass = await prisma.classes.update({
-                where: { id: parseInt(classId) },
-                data: { expected_students: parseInt(expected_students) }
-            });
+            // Ensure new expected count is not lower than already registered students
+                const registeredCount = await prisma.user.count({
+                  where: { class_id: parseInt(classId), role: 'student', status: { not: 2 } }
+                });
+                if (parseInt(expected_students) < registeredCount) {
+                  return res.status(400).json({
+                    success: false,
+                    message: "Expected student count cannot be lower than currently registered students."
+                  });
+                }
+                const updatedClass = await prisma.classes.update({
+                  where: { id: parseInt(classId) },
+                  data: { expected_students: parseInt(expected_students) }
+                });
 
             res.json({
                 success: true,
