@@ -35,16 +35,16 @@ export const uploadClassBackDesign = async (req, res) => {
         const file1 = req.files?.['backDesign']?.[0];
         const file2 = req.files?.['backDesign_2']?.[0];
         if (!file1) return res.status(400).json({ success: false, message: "backDesign (first file) is required" });
-        if (!file2) return res.status(400).json({ success: false, message: "backDesign_2 (second file) is required" });
         if (!designColor) return res.status(400).json({ success: false, message: "designColor is required" });
-        if (!designColor_2) return res.status(400).json({ success: false, message: "designColor_2 is required" });
 
         const validColors = ['white', 'black', 'normal'];
         if (!validColors.includes(designColor.toLowerCase())) {
             return res.status(400).json({ success: false, message: "designColor must be 'white', 'black', or 'normal'" });
         }
-        if (!validColors.includes(designColor_2.toLowerCase())) {
-            return res.status(400).json({ success: false, message: "designColor_2 must be 'white', 'black', or 'normal'" });
+        // The dark-garment variant (file2/designColor_2) is optional — a class can
+        // upload just one design that's used regardless of the student's garment color.
+        if (designColor_2 && !validColors.includes(designColor_2.toLowerCase())) {
+            return res.status(400).json({ success: false, message: "designColor_2 must be 'white', 'black'" });
         }
 
         const isConfigurator = isFromConfigurator === 'true' || isFromConfigurator === true;
@@ -78,11 +78,11 @@ export const uploadClassBackDesign = async (req, res) => {
                 country_id: shareWithAll ? libraryCountryId : null,
                 name: name || `back_design_${Date.now()}`,
                 file_path: file1.path,
-                file_path_2: file2.path,
+                file_path_2: file2?.path || null,
                 configured_file_path: null,
                 configured_file_path_2: null,
                 designColor: designColor.toLowerCase(),
-                designColor_2: designColor_2.toLowerCase(),
+                designColor_2: file2 ? (designColor_2 ? designColor_2.toLowerCase() : 'black') : null,
                 is_library: shareWithAll,
                 forAllStudents: shareWithAll,
                 process_status: 'uploaded',
@@ -145,16 +145,16 @@ export const reUploadClassBackDesign = async (req, res) => {
         const file1 = req.files?.['backDesign']?.[0];
         const file2 = req.files?.['backDesign_2']?.[0];
         if (!file1) return res.status(400).json({ success: false, message: "backDesign (first file) is required" });
-        if (!file2) return res.status(400).json({ success: false, message: "backDesign_2 (second file) is required" });
         if (!designColor) return res.status(400).json({ success: false, message: "designColor is required" });
-        if (!designColor_2) return res.status(400).json({ success: false, message: "designColor_2 is required" });
 
         const validColors = ['white', 'black', 'normal'];
         if (!validColors.includes(designColor.toLowerCase())) {
-            return res.status(400).json({ success: false, message: "designColor must be 'white', 'black', or 'normal'" });
+            return res.status(400).json({ success: false, message: "designColor must be 'white', 'black'" });
         }
-        if (!validColors.includes(designColor_2.toLowerCase())) {
-            return res.status(400).json({ success: false, message: "designColor_2 must be 'white', 'black', or 'normal'" });
+        // The dark-garment variant (file2/designColor_2) is optional — a class can
+        // upload just one design that's used regardless of the student's garment color.
+        if (designColor_2 && !validColors.includes(designColor_2.toLowerCase())) {
+            return res.status(400).json({ success: false, message: "designColor_2 must be 'white', 'black'" });
         }
 
         const isConfigurator = isFromConfigurator === 'true' || isFromConfigurator === true;
@@ -183,11 +183,11 @@ export const reUploadClassBackDesign = async (req, res) => {
                 country_id: shareWithAll ? libraryCountryId : null,
                 name: name || `back_design_${Date.now()}`,
                 file_path: file1.path,
-                file_path_2: file2.path,
+                file_path_2: file2?.path || null,
                 configured_file_path: null,
                 configured_file_path_2: null,
                 designColor: designColor.toLowerCase(),
-                designColor_2: designColor_2.toLowerCase(),
+                designColor_2: file2 ? (designColor_2 ? designColor_2.toLowerCase() : 'black') : null,
                 is_library: shareWithAll,
                 forAllStudents: shareWithAll,
                 process_status: 'uploaded',
@@ -473,10 +473,17 @@ export const uploadLibraryDesign = async (req, res) => {
         const file1 = req.files?.['design']?.[0];
         const file2 = req.files?.['design_2']?.[0];
         if (!file1) return res.status(400).json({ success: false, message: "design (first file) is required" });
-        if (!file2) return res.status(400).json({ success: false, message: "design_2 (second file) is required" });
         if (!country_id) return res.status(400).json({ success: false, message: "country_id is required" });
         if (!designColor) return res.status(400).json({ success: false, message: "designColor is required" });
-        if (!designColor_2) return res.status(400).json({ success: false, message: "designColor_2 is required" });
+        // The dark-garment variant (file2/designColor_2) is optional — a single
+        // design can be used regardless of the student's garment color.
+        const validColors = ['white', 'black', 'normal'];
+        if (!validColors.includes(designColor.toLowerCase())) {
+            return res.status(400).json({ success: false, message: "designColor must be 'white', 'black', or 'normal'" });
+        }
+        if (designColor_2 && !validColors.includes(designColor_2.toLowerCase())) {
+            return res.status(400).json({ success: false, message: "designColor_2 must be 'white', 'black', or 'normal'" });
+        }
 
         const country = await prisma.country.findUnique({ where: { id: parseInt(country_id) } });
         if (!country) return res.status(404).json({ success: false, message: "Country not found" });
@@ -487,11 +494,11 @@ export const uploadLibraryDesign = async (req, res) => {
                 country_id: parseInt(country_id),
                 name: name || `library_${country.name}_${Date.now()}`,
                 file_path: file1.path,
-                file_path_2: file2.path,
+                file_path_2: file2?.path || null,
                 configured_file_path: null,
                 configured_file_path_2: null,
                 designColor: designColor.toLowerCase(),
-                designColor_2: designColor_2.toLowerCase(),
+                designColor_2: file2 ? (designColor_2 ? designColor_2.toLowerCase() : 'black') : null,
                 is_library: true,
                 forAllStudents: false,
                 process_status: 'approved',
