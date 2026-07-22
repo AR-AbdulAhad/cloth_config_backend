@@ -238,7 +238,7 @@ model BackDesign {
   country_id          Int?
   name                String       @db.VarChar(255)
 
-  file_path           String       @db.Text
+  file_path           String?      @db.Text
   file_path_2         String?      @db.Text
   configured_file_path String?     @db.Text
   configured_file_path_2 String?   @db.Text
