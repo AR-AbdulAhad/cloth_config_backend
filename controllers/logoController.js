@@ -255,24 +255,19 @@ export const adminUploadBackDesign = async (req, res) => {
 
         const file1 = req.files?.['design']?.[0];
         const file2 = req.files?.['design_2']?.[0];
-        if (!file1) return res.status(400).json({ success: false, message: "design (first file) is required" });
-        if (!file2) return res.status(400).json({ success: false, message: "design_2 (second file) is required" });
-        if (!designColor) return res.status(400).json({ success: false, message: "designColor is required" });
-        if (!designColor_2) return res.status(400).json({ success: false, message: "designColor_2 is required" });
-
         const shareWithAll = forAllStudents === 'true' || forAllStudents === true;
 
         const design = await prisma.backDesign.create({
             data: {
                 class_id: class_id ? parseInt(class_id) : null,
                 country_id: country_id ? parseInt(country_id) : null,
-                name: name || file1.originalname.replace(/\.[^/.]+$/, ""),
-                file_path: file1.path,
-                file_path_2: file2.path,
+                name: name || (file1 ? file1.originalname.replace(/\.[^/.]+$/, "") : "Untitled Design"),
+                file_path: file1 ? file1.path : null,
+                file_path_2: file2 ? file2.path : null,
                 configured_file_path: null,
                 configured_file_path_2: null,
-                designColor: designColor.toLowerCase(),
-                designColor_2: designColor_2.toLowerCase(),
+                designColor: designColor ? designColor.toLowerCase() : null,
+                designColor_2: designColor_2 ? designColor_2.toLowerCase() : null,
                 is_library: shareWithAll || !class_id,
                 forAllStudents: shareWithAll,
                 process_status: 'approved',
