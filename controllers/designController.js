@@ -1,30 +1,6 @@
 import prisma from "../config/prisma.js";
 import { sendBackDesignUploadNotificationEmail, getAdminNotificationEmails, sendBackDesignStatusEmail } from "../utils/emailService.js";
 
-// export const uploadClassBackDesign = async (req, res) => {
-//     try {
-//         const classId = req.user.class_id;
-//         const { name } = req.body;
-
-//         if (!classId) return res.status(400).json({ success: false, message: "User not assigned to any class" });
-//         if (!req.file) return res.status(400).json({ success: false, message: "No file uploaded" });
-
-//         const design = await prisma.backDesign.create({
-//             data: {
-//                 class_id: parseInt(classId),
-//                 name: name || `back_design_${Date.now()}`,
-//                 file_path: req.file.path,
-//                 is_library: false,
-//                 process_status: 'uploaded',
-//                 status: 1
-//             }
-//         });
-
-//         res.json({ success: true, message: "Back design uploaded", data: design });
-//     } catch (err) {
-//         res.status(500).json({ success: false, error: err.message });
-//     }
-// };
 export const uploadClassBackDesign = async (req, res) => {
     try {
         const classId = req.user.class_id;
@@ -615,11 +591,14 @@ export const editMyBackDesign = async (req, res) => {
 
         if (!classId) return res.status(400).json({ success: false, message: "No class assigned" });
 
-        const configuredFile  = req.files?.['configuredDesign']?.[0];
+        const configuredFile = req.files?.['configuredDesign']?.[0];
         const configuredFile2 = req.files?.['configuredDesign_2']?.[0];
         const file1 = req.files?.['backDesign']?.[0];
         const file2 = req.files?.['backDesign_2']?.[0];
+        console.log(req.files);
 
+        console.log("configuredFile:", configuredFile?.path);
+        console.log("configuredFile2:", configuredFile2?.path);
         const validColors = ['white', 'black', 'normal'];
         if (designColor && !validColors.includes(designColor.toLowerCase()))
             return res.status(400).json({ success: false, message: "designColor must be 'white', 'black', or 'normal'" });
@@ -640,6 +619,19 @@ export const editMyBackDesign = async (req, res) => {
             ? await prisma.backDesign.findUnique({ where: { id: parseInt(designId) } })
             : null;
 
+        // Only one design may be the class's "current" configurator design at a time —
+        // whichever design is saved here becomes that one, so demote any other design
+        // that previously held the flag (avoids stale/ambiguous designs leaking to students
+        // via getMyClassBackDesign, which just picks the newest isFromConfigurator row).
+        await prisma.backDesign.updateMany({
+            where: {
+                class_id: classId,
+                isFromConfigurator: true,
+                ...(existingDesign ? { id: { not: parseInt(designId) } } : {})
+            },
+            data: { isFromConfigurator: false }
+        });
+
         // If found → verify ownership then UPDATE
         if (existingDesign) {
             if (existingDesign.class_id !== classId)
@@ -650,16 +642,16 @@ export const editMyBackDesign = async (req, res) => {
             const updated = await prisma.backDesign.update({
                 where: { id: parseInt(designId) },
                 data: {
-                    ...(name                && { name }),
-                    ...(designColor        && { designColor:         designColor.toLowerCase()   }),
-                    ...(designColor_2      && { designColor_2:       designColor_2.toLowerCase() }),
-                    ...(configuredFile     && { configured_file_path:   configuredFile.path     }),
-                    ...(configuredFile2    && { configured_file_path_2: configuredFile2.path    }),
-                    ...(file1              && { file_path:    file1.path }),
-                    ...(file2              && { file_path_2:  file2.path }),
-                    ...(parsedState        && { configurator_state: parsedState }),
-                    process_status: 'uploaded',
-                    status: 1,
+                    ...(name && { name }),
+                    ...(designColor && { designColor: designColor.toLowerCase() }),
+                    ...(designColor_2 && { designColor_2: designColor_2.toLowerCase() }),
+                    ...(configuredFile && { configured_file_path: configuredFile.path }),
+                    ...(configuredFile2 && { configured_file_path_2: configuredFile2.path }),
+                    ...(file1 && { file_path: file1.path }),
+                    ...(file2 && { file_path_2: file2.path }),
+                    ...(parsedState && { configurator_state: parsedState }),
+                    process_status: 'approved',
+                    status: 0,
                     isFromConfigurator: true
                 }
             });
@@ -678,18 +670,18 @@ export const editMyBackDesign = async (req, res) => {
 
         const created = await prisma.backDesign.create({
             data: {
-                class_id:              classId,
-                name:                  name || `back_design_${Date.now()}`,
-                file_path:             file1?.path         || configuredFile?.path || '',
-                file_path_2:           file2?.path         || null,
-                configured_file_path:  configuredFile?.path  || null,
+                class_id: classId,
+                name: name || `back_design_${Date.now()}`,
+                file_path: file1?.path || configuredFile?.path || '',
+                file_path_2: file2?.path || null,
+                configured_file_path: configuredFile?.path || null,
                 configured_file_path_2: configuredFile2?.path || null,
-                designColor:           designColor  ? designColor.toLowerCase()  : 'white',
-                designColor_2:         designColor_2 ? designColor_2.toLowerCase() : 'black',
-                configurator_state:    parsedState || undefined,
-                process_status:        'uploaded',
-                isFromConfigurator:    true,
-                status:                1
+                designColor: designColor ? designColor.toLowerCase() : 'white',
+                designColor_2: designColor_2 ? designColor_2.toLowerCase() : 'black',
+                configurator_state: parsedState || undefined,
+                process_status: 'approved',
+                isFromConfigurator: true,
+                status: 0
             }
         });
 
@@ -779,9 +771,9 @@ export const saveConfiguratorState = async (req, res) => {
                     designColor_2: designColor_2 || 'black',
                     is_library: false,
                     forAllStudents: false,
-                    process_status: 'uploaded',
+                    process_status: 'approved',
                     admin_comment: null,
-                    status: 1,
+                    status: 0,
                     isFromConfigurator: true,
                     configurator_state
                 }

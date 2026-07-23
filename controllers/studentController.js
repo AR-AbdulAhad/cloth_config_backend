@@ -203,7 +203,7 @@ export const placeOrder = async (req, res) => {
             product_type: item.product_type || item.type || "UNKNOWN",
             selectedColor: item.selectedColor || item.color || null,
             selectedSize: item.selectedSize || item.size || null,
-            design_config: item.design_config || item,
+            design_config: item.design_config || null,
             status: 0
         }));
 
@@ -283,7 +283,7 @@ export const placeOrder = async (req, res) => {
                             data: {
                                 selectedColor: item.selectedColor || item.color || existing.selectedColor,
                                 selectedSize: item.selectedSize || item.size || existing.selectedSize,
-                                design_config: item.design_config || item
+                                design_config: item.design_config || existing.design_config
                             }
                         });
                     }
