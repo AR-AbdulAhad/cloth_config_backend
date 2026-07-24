@@ -50,7 +50,7 @@ const backDesignStorage = multer.diskStorage({
 
 const uploadBackDesign = multer({
     storage: backDesignStorage,
-    limits: { fileSize: 15 * 1024 * 1024 }, // 15MB for designs
+    limits: { fileSize: 25 * 1024 * 1024 }, // 25MB for designs
     fileFilter: (_req, file, cb) => {
         if (!file.mimetype.startsWith("image/")) {
             return cb(new Error("Only image files are allowed"));
