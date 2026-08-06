@@ -83,6 +83,11 @@ export const listCampaigns = async (req, res) => {
                         school: true
                     }
                 });
+            } else if (campaign.target_type === 'education_program' && campaign.target_id) {
+                targetObject = await prisma.educationProgram.findUnique({
+                    where: { id: campaign.target_id },
+                    select: { id: true, name: true }
+                });
             }
 
             return {
@@ -139,6 +144,11 @@ export const getCampaign = async (req, res) => {
                     role: true,
                     school: true
                 }
+            });
+        } else if (campaign.target_type === 'education_program' && campaign.target_id) {
+            targetObject = await prisma.educationProgram.findUnique({
+                where: { id: campaign.target_id },
+                select: { id: true, name: true }
             });
         }
 
@@ -241,6 +251,18 @@ export const sendCampaign = async (req, res) => {
                 case "role":
                     if (!campaign.target_role) return res.status(400).json({ success: false, message: "target_role required for role targeting" });
                     users = await prisma.user.findMany({ where: { role: campaign.target_role, status: { not: 2 }, ...consentFilter }, select: { email: true, name: true } });
+                    break;
+
+                case "education_program":
+                    if (!campaign.target_id) return res.status(400).json({ success: false, message: "target_id required for education_program targeting" });
+                    users = await prisma.user.findMany({
+                        where: {
+                            education_program_id: campaign.target_id,
+                            status: { not: 2 },
+                            ...consentFilter
+                        },
+                        select: { email: true, name: true }
+                    });
                     break;
 
                 case "individual":
