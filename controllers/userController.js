@@ -89,7 +89,17 @@ export const listClassReps = async (req, res) => {
                     school_id: true,
                     school: { select: { name: true } },
                     class: {
-                        select: true
+                        select: {
+                            id: true,
+                            name: true,
+                            graduation_year: true,
+                            ready_for_production: true,
+                            education_program_id: true,
+                            process_status: true,
+                            education_program: {
+                                select: { id: true, name: true }
+                            }
+                        }
                     },
                     status: true
                 },
