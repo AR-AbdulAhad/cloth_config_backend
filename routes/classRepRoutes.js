@@ -2,7 +2,7 @@ import express from "express";
 import path from "path";
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { generateRegistrationLink } from "../controllers/userController.js";
-import { listClasses, getStudentOverview, listStudents, getAssignedClass, listMyLogos, listMyBackDesigns, setMyClassExpectedStudentCount, getMyClassStudentCount, getClassDeliveryDetails, setClassDeliveryDetails } from "../controllers/classRepController.js";
+import { listClasses, getStudentOverview, listStudents, getAssignedClass, listMyLogos, listMyBackDesigns, setMyClassExpectedStudentCount, getMyClassStudentCount, getClassDeliveryDetails, setClassDeliveryDetails, markReadyForProduction, unmarkReadyForProduction } from "../controllers/classRepController.js";
 import { listMyClass, editClass } from "../controllers/classController.js";
 import { uploadSchoolLogo, deleteMyLogo, editMyLogo } from "../controllers/logoController.js";
 import { uploadClassBackDesign, getConfiguratorBackDesign, reUploadClassBackDesign, setClassStudyTripCountry, getLibraryDesignsForMyClass, getStudyTripCountries, deleteMyBackDesign, editMyBackDesign, saveConfiguratorState, loadConfiguratorState } from "../controllers/designController.js";
@@ -68,6 +68,8 @@ router.put("/class/:classId/expected-students", middleware, setMyClassExpectedSt
 router.get("/class/:classId/student-count", middleware, getMyClassStudentCount);
 router.get("/class/:classId/delivery", middleware, getClassDeliveryDetails);
 router.put("/class/:classId/delivery", middleware, setClassDeliveryDetails);
+router.post("/class/:classId/ready-for-production", middleware, markReadyForProduction);
+router.delete("/class/:classId/ready-for-production", middleware, unmarkReadyForProduction);
 // router.put("/class/:id/update", middleware, editClass);
 
 // Student Management

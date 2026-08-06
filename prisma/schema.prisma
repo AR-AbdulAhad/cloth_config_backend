@@ -129,6 +129,9 @@ model Classes {
   back_design_id      Int?
   country_id          Int?
   expected_students   Int?        // Target number of students for graduation caps
+  ready_for_production Boolean   @default(false)
+  ready_for_production_at DateTime?
+  ready_for_production_note String? @db.VarChar(500)
   status              Int         @default(0)
   education_program_id Int?
   delivery_details    String?     @db.Text

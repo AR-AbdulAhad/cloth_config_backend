@@ -255,11 +255,22 @@ export const sendCampaign = async (req, res) => {
 
                 case "education_program":
                     if (!campaign.target_id) return res.status(400).json({ success: false, message: "target_id required for education_program targeting" });
+                    // Users can be linked to education_program either:
+                    // 1. Directly via user.education_program_id
+                    // 2. Indirectly via user.class → class.education_program_id (most students/class reps)
                     users = await prisma.user.findMany({
                         where: {
-                            education_program_id: campaign.target_id,
                             status: { not: 2 },
-                            ...consentFilter
+                            ...consentFilter,
+                            OR: [
+                                { education_program_id: campaign.target_id },
+                                {
+                                    class: {
+                                        education_program_id: campaign.target_id,
+                                        status: { not: 2 }
+                                    }
+                                }
+                            ]
                         },
                         select: { email: true, name: true }
                     });
@@ -277,16 +288,30 @@ export const sendCampaign = async (req, res) => {
         }
 
         if (users.length === 0) {
+            // Debug info — check without consent filter to give a helpful message
+            let debugCount = 0;
+            try {
+                if (campaign.target_type === 'education_program' && campaign.target_id) {
+                    debugCount = await prisma.user.count({
+                        where: {
+                            status: { not: 2 },
+                            OR: [
+                                { education_program_id: campaign.target_id },
+                                { class: { education_program_id: campaign.target_id, status: { not: 2 } } }
+                            ]
+                        }
+                    });
+                } else if (campaign.target_type === 'school' && campaign.target_id) {
+                    debugCount = await prisma.user.count({
+                        where: { school_id: campaign.target_id, status: { not: 2 } }
+                    });
+                }
+            } catch { /* ignore debug errors */ }
 
-            // Debug: Check if there are any users for this school without filters
-            if (campaign.target_type === 'school') {
-                const allSchoolUsers = await prisma.user.findMany({
-                    where: { school_id: campaign.target_id },
-                    select: { id: true, name: true, email: true, status: true, consent_marketing: true }
-                });
-            }
-
-            return res.status(400).json({ success: false, message: "No users found matching target criteria" });
+            const hint = debugCount > 0
+                ? ` (${debugCount} users exist but have not given marketing consent — use force=true to override)`
+                : '';
+            return res.status(400).json({ success: false, message: `No users found matching target criteria${hint}` });
         }
 
         // Send emails

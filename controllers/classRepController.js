@@ -821,3 +821,113 @@ export const setClassDeliveryDetails = async (req, res) => {
         res.status(500).json({ success: false, error: err.message });
     }
 };
+
+// ─── Mark class as Ready for Production (Class Rep) ────────────────────────
+export const markReadyForProduction = async (req, res) => {
+    try {
+        const { classId } = req.params;
+        const { note } = req.body || {};
+        const userClassId = req.user.class_id;
+
+        if (parseInt(classId) !== userClassId) {
+            return res.status(403).json({ success: false, message: "You can only update your assigned class" });
+        }
+
+        const classData = await prisma.classes.findUnique({
+            where: { id: parseInt(classId) },
+            include: {
+                school: { select: { name: true } },
+                education_program: { select: { name: true } },
+                users: {
+                    where: { role: 'class_representative', status: { not: 2 } },
+                    select: { name: true, email: true }
+                }
+            }
+        });
+
+        if (!classData) return res.status(404).json({ success: false, message: "Class not found" });
+
+        if (classData.ready_for_production) {
+            return res.status(400).json({ success: false, message: "Class is already marked as ready for production" });
+        }
+
+        // Update class
+        await prisma.classes.update({
+            where: { id: parseInt(classId) },
+            data: {
+                ready_for_production: true,
+                ready_for_production_at: new Date(),
+                ready_for_production_note: note || null
+            }
+        });
+
+        // Get order stats for the email
+        const [totalOrders, paidOrders] = await Promise.all([
+            prisma.order.count({ where: { class_id: parseInt(classId), status: { not: 2 } } }),
+            prisma.order.count({ where: { class_id: parseInt(classId), status: { not: 2 }, process_status: 'paid' } })
+        ]);
+
+        const rep = classData.users[0];
+
+        // Send email to all admins
+        try {
+            const adminEmails = await (await import("../utils/emailService.js")).getAdminNotificationEmails();
+
+            if (adminEmails.length > 0) {
+                const html = `
+                <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:20px;">
+                    <h2 style="color:#006d75;">✅ Class Ready for Production</h2>
+                    <p>A class representative has marked their class as <strong>ready for production</strong>.</p>
+
+                    <div style="background:#f6f8fa;border-left:4px solid #006d75;border-radius:4px;padding:16px;margin:20px 0;">
+                        <p style="margin:4px 0;"><strong>Class:</strong> ${classData.name}</p>
+                        <p style="margin:4px 0;"><strong>School:</strong> ${classData.school?.name || '—'}</p>
+                        <p style="margin:4px 0;"><strong>Program:</strong> ${classData.education_program?.name || '—'}</p>
+                        <p style="margin:4px 0;"><strong>Class Rep:</strong> ${rep?.name || '—'} (${rep?.email || '—'})</p>
+                        <p style="margin:4px 0;"><strong>Orders:</strong> ${paidOrders} paid / ${totalOrders} total</p>
+                        <p style="margin:4px 0;"><strong>Change Deadline:</strong> ${classData.change_deadline ? new Date(classData.change_deadline).toLocaleDateString('da-DK') : 'Not set'}</p>
+                        ${note ? `<p style="margin:4px 0;"><strong>Note from Rep:</strong> ${note}</p>` : ''}
+                        <p style="margin:4px 0;"><strong>Requested at:</strong> ${new Date().toLocaleString('da-DK', { timeZone: 'Europe/Copenhagen' })}</p>
+                    </div>
+
+                    <p>Please log in to the admin panel to review and lock the class for production.</p>
+
+                    <hr style="border:none;border-top:1px solid #eee;margin:24px 0;"/>
+                    <p style="font-size:11px;color:#aaa;">StudentLife Admin Notification</p>
+                </div>`;
+
+                const { sendEmail } = await import("../utils/emailService.js");
+                await Promise.allSettled(
+                    adminEmails.map(email =>
+                        sendEmail(email, `🎓 Ready for Production: ${classData.name} — ${classData.school?.name}`, html)
+                    )
+                );
+            }
+        } catch (emailErr) {
+            console.error('[ReadyForProduction] Admin email failed:', emailErr.message);
+        }
+
+        res.json({ success: true, message: "Class marked as ready for production. Admin has been notified." });
+    } catch (err) {
+        const error = handlePrismaError(err);
+        res.status(error.status).json({ success: false, error: error.message });
+    }
+};
+
+// ─── Unmark ready for production (Class Rep — in case of mistake) ───────────
+export const unmarkReadyForProduction = async (req, res) => {
+    try {
+        const { classId } = req.params;
+        if (parseInt(classId) !== req.user.class_id) {
+            return res.status(403).json({ success: false, message: "You can only update your assigned class" });
+        }
+        await prisma.classes.update({
+            where: { id: parseInt(classId) },
+            data: { ready_for_production: false, ready_for_production_at: null, ready_for_production_note: null }
+        });
+        res.json({ success: true, message: "Ready for production status cleared" });
+    } catch (err) {
+        const error = handlePrismaError(err);
+        res.status(error.status).json({ success: false, error: error.message });
+    }
+};
