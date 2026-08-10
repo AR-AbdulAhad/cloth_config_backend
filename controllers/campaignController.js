@@ -11,15 +11,15 @@ export const createCampaign = async (req, res) => {
         let emailBody = html_body || body;
         let emailSubject = subject;
 
-        // If template_id provided AND no custom body, load from template
-        if (template_id && !emailBody) {
+        // If template_id provided AND no custom body supplied, load from template
+        if (template_id && (!emailBody || typeof emailBody !== 'string' || !emailBody.trim())) {
             const template = await prisma.emailTemplate.findUnique({ where: { id: parseInt(template_id) } });
             if (!template) return res.status(404).json({ success: false, message: "Template not found" });
             emailBody = template.html_body;
             emailSubject = emailSubject || template.subject;
         }
 
-        if (!campaignTitle || !emailSubject || !emailBody) {
+        if (!campaignTitle || !emailSubject || !emailBody || !emailBody.trim()) {
             return res.status(400).json({ success: false, message: "Missing required fields: name, subject, body" });
         }
 
@@ -257,23 +257,33 @@ export const sendCampaign = async (req, res) => {
                     if (!campaign.target_id) return res.status(400).json({ success: false, message: "target_id required for education_program targeting" });
                     // Users can be linked to education_program either:
                     // 1. Directly via user.education_program_id
-                    // 2. Indirectly via user.class → class.education_program_id (most students/class reps)
+                    // 2. Indirectly via user.class -> class.education_program_id
                     users = await prisma.user.findMany({
                         where: {
                             status: { not: 2 },
-                            ...consentFilter,
                             OR: [
-                                { education_program_id: campaign.target_id },
+                                // Class representatives (always included regardless of marketing consent)
                                 {
-                                    class: {
-                                        education_program_id: campaign.target_id,
-                                        status: { not: 2 }
-                                    }
+                                    role: 'class_representative',
+                                    OR: [
+                                        { education_program_id: campaign.target_id },
+                                        { class: { education_program_id: campaign.target_id } }
+                                    ]
+                                },
+                                // Students and other users (consentFilter applies unless force=true)
+                                {
+                                    ...consentFilter,
+                                    OR: [
+                                        { education_program_id: campaign.target_id },
+                                        { class: { education_program_id: campaign.target_id } }
+                                    ]
                                 }
                             ]
                         },
-                        select: { email: true, name: true }
+                        select: { id: true, email: true, name: true }
                     });
+                    // Deduplicate users by email
+                    users = Array.from(new Map(users.map(u => [u.email, u])).values());
                     break;
 
                 case "individual":

@@ -41,7 +41,16 @@ export const addClassRep = async (req, res) => {
             // Restore deleted user with new details
             const restored = await prisma.user.update({
                 where: { email },
-                data: { name, password: hashedPassword, school_id: parseInt(school_id), role: 'class_representative', status: 0, class_id: null }
+                data: {
+                    name,
+                    password: hashedPassword,
+                    school_id: parseInt(school_id),
+                    role: 'class_representative',
+                    status: 0,
+                    class_id: null,
+                    consent_marketing: true,
+                    consent_production: true
+                }
             });
             const encoded = Buffer.from(`${email}${generatedPassword}`).toString('base64');
             const baseUrl = `${frontendDashboardUrl}set-password?${encoded}`;
@@ -50,7 +59,16 @@ export const addClassRep = async (req, res) => {
         }
 
         const rep = await prisma.user.create({
-            data: { name, email, password: hashedPassword, role: "class_representative", school_id: parseInt(school_id), status: 0 }
+            data: {
+                name,
+                email,
+                password: hashedPassword,
+                role: "class_representative",
+                school_id: parseInt(school_id),
+                status: 0,
+                consent_marketing: true,
+                consent_production: true
+            }
         });
 
         const encoded = Buffer.from(`${email}${generatedPassword}`).toString('base64');
