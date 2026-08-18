@@ -876,24 +876,24 @@ export const markReadyForProduction = async (req, res) => {
             if (adminEmails.length > 0) {
                 const html = `
                 <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:20px;">
-                    <h2 style="color:#006d75;">✅ Class Ready for Production</h2>
-                    <p>A class representative has marked their class as <strong>ready for production</strong>.</p>
+                    <h2 style="color:#006d75;">✅ Klasse klar til produktion</h2>
+                    <p>En klasserepræsentant har markeret deres klasse som <strong>klar til produktion</strong>.</p>
 
                     <div style="background:#f6f8fa;border-left:4px solid #006d75;border-radius:4px;padding:16px;margin:20px 0;">
-                        <p style="margin:4px 0;"><strong>Class:</strong> ${classData.name}</p>
-                        <p style="margin:4px 0;"><strong>School:</strong> ${classData.school?.name || '—'}</p>
+                        <p style="margin:4px 0;"><strong>Klasse:</strong> ${classData.name}</p>
+                        <p style="margin:4px 0;"><strong>Skole:</strong> ${classData.school?.name || '—'}</p>
                         <p style="margin:4px 0;"><strong>Program:</strong> ${classData.education_program?.name || '—'}</p>
-                        <p style="margin:4px 0;"><strong>Class Rep:</strong> ${rep?.name || '—'} (${rep?.email || '—'})</p>
-                        <p style="margin:4px 0;"><strong>Orders:</strong> ${paidOrders} paid / ${totalOrders} total</p>
-                        <p style="margin:4px 0;"><strong>Change Deadline:</strong> ${classData.change_deadline ? new Date(classData.change_deadline).toLocaleDateString('da-DK') : 'Not set'}</p>
-                        ${note ? `<p style="margin:4px 0;"><strong>Note from Rep:</strong> ${note}</p>` : ''}
-                        <p style="margin:4px 0;"><strong>Requested at:</strong> ${new Date().toLocaleString('da-DK', { timeZone: 'Europe/Copenhagen' })}</p>
+                        <p style="margin:4px 0;"><strong>Klasse-repræsentant:</strong> ${rep?.name || '—'} (${rep?.email || '—'})</p>
+                        <p style="margin:4px 0;"><strong>Ordrer:</strong> ${paidOrders} betalt / ${totalOrders} i alt</p>
+                        <p style="margin:4px 0;"><strong>Ændringsfrist:</strong> ${classData.change_deadline ? new Date(classData.change_deadline).toLocaleDateString('da-DK') : 'Ikke sat'}</p>
+                        ${note ? `<p style="margin:4px 0;"><strong>Note fra repræsentant:</strong> ${note}</p>` : ''}
+                        <p style="margin:4px 0;"><strong>Anmodet den:</strong> ${new Date().toLocaleString('da-DK', { timeZone: 'Europe/Copenhagen' })}</p>
                     </div>
 
-                    <p>Please log in to the admin panel to review and lock the class for production.</p>
+                    <p>Log venligst ind på admin-panelet for at gennemgå og låse klassen til produktion.</p>
 
                     <hr style="border:none;border-top:1px solid #eee;margin:24px 0;"/>
-                    <p style="font-size:11px;color:#aaa;">StudentLife Admin Notification</p>
+                    <p style="font-size:11px;color:#aaa;">StudentLife Administrationsmeddelelse</p>
                 </div>`;
 
                 const { sendEmail } = await import("../utils/emailService.js");
