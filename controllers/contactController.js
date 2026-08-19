@@ -1,6 +1,5 @@
 import prisma from "../config/prisma.js";
 import { sendEmail } from "../utils/emailService.js";
-import { syncContactToHubspot } from "../utils/hubspotService.js";
 
 export const sendInquiry = async (req, res) => {
     try {
@@ -122,8 +121,7 @@ Hvis det haster, kontakt os på <a href="mailto:info@studentlife.dk">info@studen
 
         await Promise.all([
             sendEmail(infoEmail, `Ny forespørgsel fra ${name}`, infoHtml),
-            sendEmail(email, "Vi har modtaget din forespørgsel", ackHtml),
-            syncContactToHubspot({ name, email, phone })
+            sendEmail(email, "Vi har modtaget din forespørgsel", ackHtml)
         ]);
 
         return res.json({
