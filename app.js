@@ -9,6 +9,8 @@ import paymentRoutes from "./routes/paymentRoutes.js";
 import campaignRoutes from "./routes/campaignRoutes.js";
 import templateRoutes from "./routes/templateRoutes.js";
 import contactRoutes from "./routes/contactRoutes.js";
+import smsRoutes from "./routes/smsRoutes.js";
+import { runSmsPipelineScheduler } from "./services/smsScheduler.js";
 import cors from "cors";
 import path from "path";
 import { checkExpiredHoldOrders } from "./utils/expiryWorker.js";
@@ -95,6 +97,7 @@ app.use("/api/payment", paymentRoutes);
 app.use("/api/campaigns", campaignRoutes);
 app.use("/api/templates", templateRoutes);
 app.use("/api/contact", contactRoutes);
+app.use("/api/sms", smsRoutes);
 
 app.get("/", (req, res) => {
     res.send("StudentLife Cloth Backend is running");
@@ -127,4 +130,10 @@ httpServer.listen(PORT, () => {
     setInterval(() => {
         checkExpiredHoldOrders();
     }, 60000);
-});
+
+    // Start SMS pipeline scheduler (runs on start & every 1 hour)
+    runSmsPipelineScheduler();
+    setInterval(() => {
+        runSmsPipelineScheduler();
+    }, 3600000);
+});
