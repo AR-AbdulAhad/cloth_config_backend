@@ -352,7 +352,7 @@ export const getSidebarMenus = async (req, res) => {
                     module: 'Marketing',
                     children: [
                         { title: 'Email Campaigns', path: '/campaigns', icon: 'EmailIcon' },
-                        { title: 'SMS Campaigns', path: '/sms-campaigns', icon: 'CampaignIcon' },
+                        // { title: 'SMS Campaigns', path: '/sms-campaigns', icon: 'CampaignIcon' },
                         // { title: 'Automated Email', path: '/automated-emails', icon: 'EmailIcon' },
                     ]
                 },
