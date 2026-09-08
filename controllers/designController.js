@@ -619,18 +619,7 @@ export const editMyBackDesign = async (req, res) => {
             ? await prisma.backDesign.findUnique({ where: { id: parseInt(designId) } })
             : null;
 
-        // Only one design may be the class's "current" configurator design at a time —
-        // whichever design is saved here becomes that one, so demote any other design
-        // that previously held the flag (avoids stale/ambiguous designs leaking to students
-        // via getMyClassBackDesign, which just picks the newest isFromConfigurator row).
-        await prisma.backDesign.updateMany({
-            where: {
-                class_id: classId,
-                isFromConfigurator: true,
-                ...(existingDesign ? { id: { not: parseInt(designId) } } : {})
-            },
-            data: { isFromConfigurator: false }
-        });
+
 
         // If found → verify ownership then UPDATE
         if (existingDesign) {
