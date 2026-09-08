@@ -634,7 +634,8 @@ export const editMyBackDesign = async (req, res) => {
 
         // If found → verify ownership then UPDATE
         if (existingDesign) {
-            if (existingDesign.class_id !== classId)
+            // Allow if design belongs to this class OR if it is a library design (is_library: true or class_id is null)
+            if (existingDesign.class_id !== null && existingDesign.class_id !== classId && !existingDesign.is_library)
                 return res.status(403).json({ success: false, message: "Unauthorized" });
             if (existingDesign.status === 2)
                 return res.status(400).json({ success: false, message: "Cannot edit a deleted design" });
