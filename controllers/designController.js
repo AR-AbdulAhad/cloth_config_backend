@@ -633,6 +633,7 @@ export const editMyBackDesign = async (req, res) => {
                 where: { id: parseInt(designId) },
                 data: {
                     ...(name && { name }),
+                    ...(classId && !existingDesign.class_id ? { class_id: parseInt(classId) } : {}),
                     ...(designColor && { designColor: designColor.toLowerCase() }),
                     ...(designColor_2 && { designColor_2: designColor_2.toLowerCase() }),
                     ...(configuredFile && { configured_file_path: configuredFile.path }),
@@ -642,7 +643,8 @@ export const editMyBackDesign = async (req, res) => {
                     ...(parsedState && { configurator_state: parsedState }),
                     process_status: 'approved',
                     status: 0,
-                    isFromConfigurator: true
+                    isFromConfigurator: true,
+                    created_at: new Date()
                 }
             });
 
@@ -744,7 +746,8 @@ export const saveConfiguratorState = async (req, res) => {
                     designColor_2: designColor_2 || design.designColor_2,
                     name: name || design.name,
                     configured_file_path: configured_file_path || design.configured_file_path,
-                    configured_file_path_2: configured_file_path_2 || design.configured_file_path_2
+                    configured_file_path_2: configured_file_path_2 || design.configured_file_path_2,
+                    created_at: new Date()
                 }
             });
         } else {
